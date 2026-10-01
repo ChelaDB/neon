@@ -289,8 +289,12 @@ jobs:
           export LD_LIBRARY_PATH="$PWD/pg_install/v17/lib"
           # shellcheck disable=SC2086
           mold -run cargo test --doc $CARGO_FLAGS --release
+          # Quarantined Rust tests, each with its reason:
+          # - binary(test_real_gcs): needs a real GCS bucket (GCS_TEST_BUCKET); unlike
+          #   the S3 and Azure suites it doesn't skip itself when unconfigured.
           # shellcheck disable=SC2086
-          mold -run cargo nextest run $CARGO_FLAGS --release
+          mold -run cargo nextest run $CARGO_FLAGS --release --no-fail-fast \
+            -E 'not (package(remote_storage) and binary(test_real_gcs))'
           echo "rust tests took $(( $(date +%s) - start ))s"
 
       - name: Disk at the end
@@ -340,7 +344,6 @@ jobs:
         run: |
           mkdir -p /tmp/neon
           tar -C /tmp/neon -I zstd -xf /tmp/neon-artifact/neon-artifact.tar.zst
-          rm -rf /tmp/neon-artifact
 
       - name: Python deps
         run: ./scripts/pysync
