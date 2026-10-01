@@ -4,36 +4,49 @@
 #   mapfile -t deselect < <(.github/scripts/known_failures.sh)
 #   ./scripts/pytest ... "${deselect[@]}"
 #
-# Usage: known_failures.sh [FILE]
-# FILE defaults to $KNOWN_FAILURES_FILE, then to test_runner/known_failures.txt
-# at the repository root.
+# Usage: known_failures.sh [FILE...]
+# Several files are merged in argument order (scripts/ci-local.sh passes
+# test_runner/known_failures.txt and test_runner/known_failures.local.txt).
+# With no FILE the default is $KNOWN_FAILURES_FILE, then
+# test_runner/known_failures.txt at the repository root. A listed file that
+# does not exist is an error, never skipped: skipping would silently run
+# tests that are quarantined.
 #
 # Format: one `<nodeid>  # <reason>` per line; blank lines and lines starting
 # with `#` are ignored. An entry without a reason is an error.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-file="${1:-${KNOWN_FAILURES_FILE:-$root/test_runner/known_failures.txt}}"
-
-if [[ ! -f "$file" ]]; then
-    echo "known_failures.sh: $file not found" >&2
-    exit 1
+if (($# > 0)); then
+    files=("$@")
+else
+    files=("${KNOWN_FAILURES_FILE:-$root/test_runner/known_failures.txt}")
 fi
 
-lineno=0
-while IFS= read -r line || [[ -n "$line" ]]; do
-    lineno=$((lineno + 1))
-    trimmed="${line#"${line%%[![:space:]]*}"}"
-    [[ -z "$trimmed" || "$trimmed" == \#* ]] && continue
-
-    nodeid="${trimmed%%#*}"
-    nodeid="${nodeid%"${nodeid##*[![:space:]]}"}"
-    reason=""
-    [[ "$trimmed" == *#* ]] && reason="${trimmed#*#}"
-    reason="${reason//[[:space:]]/}"
-    if [[ -z "$reason" ]]; then
-        echo "known_failures.sh: $file:$lineno: '$nodeid' has no '# reason'" >&2
+parse_file() {
+    local file="$1" line trimmed nodeid reason lineno=0
+    if [[ ! -f "$file" ]]; then
+        echo "known_failures.sh: $file not found" >&2
         exit 1
     fi
-    printf -- '--deselect\n%s\n' "$nodeid"
-done <"$file"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        lineno=$((lineno + 1))
+        trimmed="${line#"${line%%[![:space:]]*}"}"
+        [[ -z "$trimmed" || "$trimmed" == \#* ]] && continue
+
+        nodeid="${trimmed%%#*}"
+        nodeid="${nodeid%"${nodeid##*[![:space:]]}"}"
+        reason=""
+        [[ "$trimmed" == *#* ]] && reason="${trimmed#*#}"
+        reason="${reason//[[:space:]]/}"
+        if [[ -z "$reason" ]]; then
+            echo "known_failures.sh: $file:$lineno: '$nodeid' has no '# reason'" >&2
+            exit 1
+        fi
+        printf -- '--deselect\n%s\n' "$nodeid"
+    done <"$file"
+}
+
+for f in "${files[@]}"; do
+    parse_file "$f"
+done

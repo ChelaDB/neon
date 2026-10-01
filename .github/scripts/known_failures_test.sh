@@ -67,11 +67,49 @@ else
     echo "ok: a missing file is an error"
 fi
 
+# Several files are merged in argument order (known_failures.txt, then known_failures.local.txt).
+printf 'one::a  # x\n' >"$tmp/m1.txt"
+printf '# local\ntwo::b  # y\n' >"$tmp/m2.txt"
+if [[ "$("$script" "$tmp/m1.txt" "$tmp/m2.txt" | paste -sd' ' -)" == "--deselect one::a --deselect two::b" ]]; then
+    echo "ok: two files are merged in argument order"
+else
+    echo "FAIL: two files are merged in argument order"
+    failures=$((failures + 1))
+fi
+
+if "$script" "$tmp/m1.txt" "$tmp/does-not-exist.txt" >/dev/null 2>&1; then
+    echo "FAIL: a missing second file must be an error"
+    failures=$((failures + 1))
+else
+    echo "ok: a missing second file is an error"
+fi
+
+# An invalid entry in the second file is rejected and names that file.
+printf 'bad::entry\n' >"$tmp/m3.txt"
+if err="$("$script" "$tmp/m1.txt" "$tmp/m3.txt" 2>&1 >/dev/null)"; then
+    echo "FAIL: an entry without a reason in the second file must be an error"
+    failures=$((failures + 1))
+elif [[ "$err" == *m3.txt* ]]; then
+    echo "ok: an entry without a reason in the second file is rejected, naming the file"
+else
+    echo "FAIL: the error for the second file must name it: $err"
+    failures=$((failures + 1))
+fi
+
 # The committed list itself must parse.
 if "$script" >/dev/null; then
     echo "ok: the committed test_runner/known_failures.txt parses"
 else
     echo "FAIL: the committed test_runner/known_failures.txt does not parse"
+    failures=$((failures + 1))
+fi
+
+# The committed local list parses together with the shared one.
+root="$(cd "$here/../.." && pwd)"
+if "$script" "$root/test_runner/known_failures.txt" "$root/test_runner/known_failures.local.txt" >/dev/null; then
+    echo "ok: the committed known_failures.txt and known_failures.local.txt parse together"
+else
+    echo "FAIL: the committed known_failures.txt and known_failures.local.txt do not parse together"
     failures=$((failures + 1))
 fi
 
