@@ -1,0 +1,106 @@
+name: advisories
+
+# Daily `cargo deny check advisories` (same deny.toml as the lint job in pr.yml),
+# in the build-tools image. When it fails, the `report` job opens, or comments
+# on, the single open issue titled "New RustSec advisory" (advisory_issue.sh).
+# A passing run opens nothing.
+#
+# The image tag is computed the way build-tools.yml and ci-local.sh compute it
+# (first 12 hex of sha256sum build-tools/Dockerfile); this workflow does not
+# build the image, so it fails (red run, no issue) if that tag was never pushed.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: advisories
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      image: ${{ steps.tag.outputs.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compute the image tag
+        id: tag
+        run: |
+          tag="$(sha256sum build-tools/Dockerfile | cut -c1-12)"
+          echo "image=ghcr.io/cheladb/neon-build-tools:${tag}" | tee -a "$GITHUB_OUTPUT"
+
+  deny:
+    needs: [tag]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      status: ${{ steps.deny.outputs.status }}
+      ids: ${{ steps.deny.outputs.ids }}
+    container:
+      image: ${{ needs.tag.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --user root --init
+    defaults:
+      run:
+        shell: bash .github/scripts/as-nonroot.sh {0}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # JSON diagnostics go to stderr; the error ones carry the advisory ID.
+      # The step runs as `nonroot`, which cannot write $RUNNER_TEMP (owned by
+      # the runner user), so the output goes to a mktemp file under /tmp.
+      - name: cargo deny check advisories
+        id: deny
+        run: |
+          out="$(mktemp /tmp/deny.XXXXXX.json)"
+          set +e
+          cargo deny --format json check advisories 2>"$out"
+          status=$?
+          set -e
+          echo "cargo deny exit status ${status}; output ${out} ($(stat -c %s "$out") bytes)"
+          cat "$out"
+          ids="$(jq -r 'select(.type == "diagnostic" and .fields.severity == "error") | .fields.advisory.id // empty' \
+            "$out" | sort -u | paste -sd' ' -)"
+          echo "status=${status}" >>"$GITHUB_OUTPUT"
+          echo "ids=${ids}" >>"$GITHUB_OUTPUT"
+          exit "$status"
+
+  # Plain runner: the build-tools image has no gh.
+  report:
+    needs: [deny]
+    if: ${{ always() && needs.deny.outputs.status != '' && needs.deny.outputs.status != '0' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          STATUS: ${{ needs.deny.outputs.status }}
+          IDS: ${{ needs.deny.outputs.ids }}
+        run: .github/scripts/advisory_issue.sh "$STATUS" "$IDS"

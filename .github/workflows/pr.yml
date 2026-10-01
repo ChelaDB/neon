@@ -77,6 +77,9 @@ jobs:
       - name: known_failures.sh self-test
         run: .github/scripts/known_failures_test.sh
 
+      - name: advisory_issue.sh self-test
+        run: .github/scripts/advisory_issue_test.sh
+
       - name: actionlint
         if: ${{ !cancelled() }}
         run: |
