@@ -1,7 +1,7 @@
 name: pr
 
 # PR CI, manual only (workflow_dispatch) until the fork is integrated: PRs are
-# checked locally with .github/scripts/ci-local.sh, which runs the same steps in
+# checked locally with .github/scripts/ci-local.sh, which runs the same lint, build and Rust-test steps in
 # the same image (see FORK.md, "Checks").
 #
 # lint, a release build of Postgres v17 and the Rust binaries, the Rust

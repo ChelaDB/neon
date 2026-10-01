@@ -25,17 +25,18 @@ expect() {
 parse() {
     (
         parse_args "$@" || exit 1
-        echo "pg=$PG build=$BUILD_TYPE quick=$QUICK k=$KEXPR n=$WORKERS"
+        echo "pg=$PG build=$BUILD_TYPE regress=$REGRESS k=$KEXPR n=$WORKERS"
     )
 }
 
-expect "defaults" "pg=v17 build=release quick=0 k= n=6" "$(parse)"
-expect "--pg and --build-type" "pg=v16 build=debug quick=0 k= n=6" "$(parse --pg v16 --build-type debug)"
-expect "--quick" "pg=v17 build=release quick=1 k= n=6" "$(parse --quick)"
-expect "-k and -n" "pg=v17 build=release quick=0 k=test_a or test_b n=3" "$(parse -k 'test_a or test_b' -n 3)"
-expect "every major is accepted" "pg=v14 build=release quick=0 k= n=6" "$(parse --pg v14)"
+expect "defaults (no regression suite)" "pg=v17 build=release regress=0 k= n=6" "$(parse)"
+expect "--pg and --build-type" "pg=v16 build=debug regress=0 k= n=6" "$(parse --pg v16 --build-type debug)"
+expect "--regress" "pg=v17 build=release regress=1 k= n=6" "$(parse --regress)"
+expect "--regress with -k and -n" "pg=v17 build=release regress=1 k=test_a or test_b n=3" "$(parse --regress -k 'test_a or test_b' -n 3)"
+expect "-k and -n in either order" "pg=v17 build=release regress=1 k=x n=2" "$(parse -k x -n 2 --regress)"
+expect "every major is accepted" "pg=v14 build=release regress=0 k= n=6" "$(parse --pg v14)"
 
-for bad in "--pg v18" "--pg" "--build-type fast" "-n 0" "-n x" "--bogus" "-k"; do
+for bad in "--pg v18" "--pg" "--build-type fast" "-n 0" "-n x" "--bogus" "-k" "--quick" "-k x" "-n 3"; do
     # shellcheck disable=SC2086
     if parse $bad >/dev/null 2>&1; then
         echo "FAIL: [$bad] must be rejected"

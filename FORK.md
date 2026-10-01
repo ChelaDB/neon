@@ -26,10 +26,8 @@ CI quarantines known test failures in `test_runner/known_failures.txt`, each wit
 
 ## Checks
 
-PRs are checked on a developer machine, not by per-PR GitHub CI: `.github/workflows/pr.yml` is manual (`workflow_dispatch`) until the fork is integrated, and branch protection on `main` requires a PR but no status check. `.github/scripts/ci-local.sh` runs the same steps as `pr.yml` (lint, build, Rust tests, regression suite) inside the same `ghcr.io/cheladb/neon-build-tools` image (needs `docker login ghcr.io` once), with caches in the Docker volumes `chela-neon-cargo` and `chela-neon-target`, and logs under `.ci-local/` (git-ignored):
+The gate for every PR is `.github/scripts/ci-local.sh`: lint (self-tests, actionlint, fmt, clippy, cargo deny, ruff, mypy), build, and the Rust tests. It runs on a developer machine inside the same `ghcr.io/cheladb/neon-build-tools` image as `.github/workflows/pr.yml` (needs `docker login ghcr.io` once), with caches in the Docker volumes `chela-neon-cargo` and `chela-neon-target` and logs under `.ci-local/` (git-ignored). Use `--pg v14|v15|v16` for the older majors.
 
-- `ci-local.sh --quick` for doc- or CI-only PRs (lint + build + Rust tests, no regression);
-- `ci-local.sh` for everything else (Postgres v17, release build, `-n 6` pytest workers);
-- `ci-local.sh --pg v16` (or `v14`, `v15`) for the older majors; `--build-type debug`, `-k <expr>` and `-n <workers>` are also available.
+Per-PR GitHub CI is manual: `pr.yml` is `workflow_dispatch` only until the fork is integrated, and branch protection on `main` requires a PR but no status check.
 
-The regression run deselects `test_runner/known_failures.txt` (fails on GitHub's runners too) and `test_runner/known_failures.local.txt` (fails only in the local run, on unchanged `main`). Both use the `<nodeid>  # <reason>` format and may only shrink.
+Neon's pytest regression suite is opt-in and required for no PR: `ci-local.sh --regress [-k <expr>] [-n <workers>]` runs it for a targeted check, for example to debug one test. When an image changes, cheladb's own e2e covers the parts we use. The regression run deselects `test_runner/known_failures.txt` (fails on GitHub's runners too) and `test_runner/known_failures.local.txt` (fails only in the local run); both use the `<nodeid>  # <reason>` format and may only shrink.

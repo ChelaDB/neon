@@ -3,13 +3,17 @@
 # build-tools image the workflow uses, so a PR can be checked without GitHub CI.
 #
 #   .github/scripts/ci-local.sh [--pg v14|v15|v16|v17] [--build-type release|debug]
-#                               [--quick] [-k <pytest expr>] [-n <workers>]
+#                               [--regress [-k <pytest expr>] [-n <workers>]]
 #
-#   --pg          Postgres major the build and the regression suite use (default v17)
+# The default run (lint + build + rust-tests) is the gate for every PR. Neon's
+# regression suite is opt-in: use --regress for a targeted run (for example to
+# debug one test with -k); it is required for no PR.
+#
+#   --pg          Postgres major the build (and --regress) use (default v17)
 #   --build-type  release (default) or debug
-#   --quick       lint + build + rust-tests, no regression suite (for doc- or CI-only PRs)
-#   -k EXPR       pytest -k expression for the regression suite
-#   -n N          pytest-xdist workers for the regression suite (default 6)
+#   --regress     also run Neon's pytest regression suite (opt-in)
+#   -k EXPR       pytest -k expression (needs --regress)
+#   -n N          pytest-xdist workers (needs --regress; default 6)
 #
 # Steps (each in its own `docker run --rm` of the build-tools image, as the
 # image's `nonroot` user, mirroring pr.yml's jobs and commands):
@@ -17,7 +21,7 @@
 #               are report-only, as in pr.yml), ruff, mypy
 #   build       Postgres <pg> + extensions + Rust binaries (`make ... all`)
 #   rust-tests  Postgres v14-v17 + extensions, cargo test --doc, cargo nextest
-#   regress     pytest test_runner/regress in one process with -n <workers> and
+#   regress     (only with --regress) pytest test_runner/regress in one process with -n <workers> and
 #               --reruns 2, deselecting test_runner/known_failures.txt and
 #               test_runner/known_failures.local.txt
 #
@@ -42,13 +46,14 @@ usage() {
     sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
 }
 
-# parse_args <args...>: sets PG, BUILD_TYPE, QUICK, KEXPR, WORKERS.
+# parse_args <args...>: sets PG, BUILD_TYPE, REGRESS, KEXPR, WORKERS.
 parse_args() {
     PG=v17
     BUILD_TYPE=release
-    QUICK=0
+    REGRESS=0
     KEXPR=""
     WORKERS=6
+    local k_given=0 n_given=0
     while (($# > 0)); do
         case "$1" in
         --pg)
@@ -67,19 +72,21 @@ parse_args() {
             esac
             shift 2
             ;;
-        --quick)
-            QUICK=1
+        --regress)
+            REGRESS=1
             shift
             ;;
         -k)
             [[ $# -ge 2 ]] || { echo "ci-local.sh: -k needs a value" >&2; return 1; }
             KEXPR="$2"
+            k_given=1
             shift 2
             ;;
         -n)
             [[ $# -ge 2 ]] || { echo "ci-local.sh: -n needs a value" >&2; return 1; }
             [[ "$2" =~ ^[1-9][0-9]*$ ]] || { echo "ci-local.sh: -n must be a positive integer, not '$2'" >&2; return 1; }
             WORKERS="$2"
+            n_given=1
             shift 2
             ;;
         -h | --help)
@@ -92,6 +99,10 @@ parse_args() {
             ;;
         esac
     done
+    if ((REGRESS == 0 && (k_given || n_given))); then
+        echo "ci-local.sh: -k and -n only apply with --regress" >&2
+        return 1
+    fi
 }
 
 # image_name <repo root>: computed exactly as pr.yml and build-tools.yml do.
@@ -397,7 +408,7 @@ main() {
     trap on_interrupt INT TERM
 
     IMAGE="$(image_name "$ROOT")"
-    echo "ci-local: $IMAGE, pg=$PG, build=$BUILD_TYPE, quick=$QUICK, workers=$WORKERS, -k [${KEXPR}]"
+    echo "ci-local: $IMAGE, pg=$PG, build=$BUILD_TYPE, regress=$REGRESS, workers=$WORKERS, -k [${KEXPR}]"
     ensure_submodules
     ensure_image
     ensure_volumes
@@ -407,7 +418,7 @@ main() {
     local build_ok=1
     run_step build step_build || { OVERALL=1; build_ok=0; }
     run_step rust-tests step_rust_tests || OVERALL=1
-    if ((QUICK == 0)); then
+    if ((REGRESS == 1)); then
         if ((build_ok)); then
             run_step regress step_regress || OVERALL=1
         else
