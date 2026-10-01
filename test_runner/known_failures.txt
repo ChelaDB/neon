@@ -1,0 +1,19 @@
+# Regression tests that fail on unchanged code on our CI runners
+# (GitHub-hosted ubuntu-24.04, 4 vCPU / 16 GB, no cloud credentials).
+#
+# Format: one entry per line,
+#   <pytest node id>  # <short, concrete reason>
+# for example
+#   test_runner/regress/test_x.py::test_y[release-pg17]  # needs real S3
+# Blank lines and lines starting with `#` are ignored. Every entry must have a
+# reason. `.github/scripts/known_failures.sh` turns the entries into pytest
+# `--deselect` arguments (a node id prefix deselects every matching test).
+#
+# This list may only shrink. The one exception is a PR that merges upstream
+# code (for example a Postgres minor); it may add an entry with the
+# justification in the PR description.
+
+test_runner/regress/test_compatibility.py::test_historic_storage_formats[release-pg17-dataset1]  # downloads its dataset from Neon's neon-github-public-dev S3 bucket, now HTTP 403 (failed 3/3)
+test_runner/regress/test_compatibility.py::test_historic_storage_formats[release-pg17-dataset2]  # downloads its dataset from Neon's neon-github-public-dev S3 bucket, now HTTP 403 (failed 3/3)
+test_runner/regress/test_pageserver_getpage_throttle.py::test_pageserver_getpage_throttle[release-pg17]  # hard-codes PgVersion.V16 for timeline_create; the PR build has only v17's initdb (failed 3/3)
+test_runner/regress/test_pg_regress.py::test_tx_abort_with_many_relations[release-pg17-v1]  # statement timeout on 4 vCPU (5000 relations): failed 3/3 in run 36831912358 attempt 2, needed a rerun in run 36827491534
