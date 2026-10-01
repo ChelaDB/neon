@@ -783,6 +783,7 @@ impl Endpoint {
                             name: PgIdent::from_str("test").unwrap(),
                             encrypted_password: None,
                             options: None,
+                            privileged: None,
                         }]
                     } else {
                         Vec::new()
@@ -842,6 +843,7 @@ impl Endpoint {
                         name: PgIdent::from_str("test").unwrap(),
                         encrypted_password: None,
                         options: None,
+                        privileged: None,
                     });
                     spec.cluster.databases.push(Database {
                         name: PgIdent::from_str("neondb").unwrap(),

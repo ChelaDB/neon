@@ -786,55 +786,44 @@ async fn get_operations<'a>(
         ApplySpecPhase::CreateAndAlterRoles => {
             let mut ctx = ctx.write().await;
 
-            let operations = spec.cluster.roles
-                .iter()
-                .filter_map(move |role| {
-                    let roles = &mut ctx.roles;
-                    let db_role = roles.get(&role.name);
+            let operations = spec.cluster.roles.iter().filter_map(move |role| {
+                let roles = &mut ctx.roles;
+                let db_role = roles.get(&role.name);
 
-                    match db_role {
-                        Some(db_role) => {
-                            if db_role.encrypted_password != role.encrypted_password {
-                                // This can be run on /every/ role! Not just ones created through the console.
-                                // This means that if you add some funny ALTER here that adds a permission,
-                                // this will get run even on user-created roles! This will result in different
-                                // behavior before and after a spec gets reapplied. The below ALTER as it stands
-                                // now only grants LOGIN and changes the password. Please do not allow this branch
-                                // to do anything silly.
-                                Some(Operation {
-                                    query: format!(
-                                        "ALTER ROLE {} {}",
-                                        role.name.pg_quote(),
-                                        role.to_pg_options(),
-                                    ),
-                                    comment: None,
-                                })
-                            } else {
-                                None
-                            }
-                        }
-                        None => {
-                            let query = if !jwks_roles.contains(role.name.as_str()) {
-                                format!(
-                                    "CREATE ROLE {} INHERIT CREATEROLE CREATEDB BYPASSRLS REPLICATION IN ROLE {} {}",
-                                    role.name.pg_quote(),
-                                    params.privileged_role_name,
-                                    role.to_pg_options(),
-                                )
-                            } else {
-                                format!(
-                                    "CREATE ROLE {} {}",
-                                    role.name.pg_quote(),
-                                    role.to_pg_options(),
-                                )
-                            };
+                match db_role {
+                    Some(db_role) => {
+                        if db_role.encrypted_password != role.encrypted_password {
+                            // This can be run on /every/ role! Not just ones created through the console.
+                            // This means that if you add some funny ALTER here that adds a permission,
+                            // this will get run even on user-created roles! This will result in different
+                            // behavior before and after a spec gets reapplied. The below ALTER as it stands
+                            // now only grants LOGIN and changes the password. Please do not allow this branch
+                            // to do anything silly.
                             Some(Operation {
-                                query,
-                                comment: Some(format!("creating role {}", role.name)),
+                                query: format!(
+                                    "ALTER ROLE {} {}",
+                                    role.name.pg_quote(),
+                                    role.to_pg_options(),
+                                ),
+                                comment: None,
                             })
+                        } else {
+                            None
                         }
                     }
-                });
+                    None => {
+                        let query = create_role_query(
+                            role,
+                            &params.privileged_role_name,
+                            jwks_roles.contains(role.name.as_str()),
+                        );
+                        Some(Operation {
+                            query,
+                            comment: Some(format!("creating role {}", role.name)),
+                        })
+                    }
+                }
+            });
 
             Ok(Box::new(operations))
         }
@@ -1299,5 +1288,70 @@ async fn get_operations<'a>(
             query: String::from(include_str!("sql/finalize_drop_subscriptions.sql")),
             comment: None,
         }))),
+    }
+}
+
+/// Build the `CREATE ROLE` statement for a role that doesn't exist yet.
+/// JWKS roles and roles with `privileged == Some(false)` are plain roles.
+fn create_role_query(role: &Role, privileged_role_name: &str, is_jwks: bool) -> String {
+    if is_jwks || role.privileged == Some(false) {
+        format!(
+            "CREATE ROLE {} {}",
+            role.name.pg_quote(),
+            role.to_pg_options(),
+        )
+    } else {
+        format!(
+            "CREATE ROLE {} INHERIT CREATEROLE CREATEDB BYPASSRLS REPLICATION IN ROLE {} {}",
+            role.name.pg_quote(),
+            privileged_role_name,
+            role.to_pg_options(),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn role(privileged: Option<bool>) -> Role {
+        Role {
+            name: "r".parse().unwrap(),
+            encrypted_password: None,
+            options: None,
+            privileged,
+        }
+    }
+
+    #[test]
+    fn create_role_query_plain_when_privileged_false() {
+        let r = role(Some(false));
+        assert_eq!(
+            create_role_query(&r, "neon_superuser", false),
+            format!("CREATE ROLE \"r\" {}", r.to_pg_options())
+        );
+    }
+
+    #[test]
+    fn create_role_query_default_is_privileged() {
+        for p in [None, Some(true)] {
+            let r = role(p);
+            assert_eq!(
+                create_role_query(&r, "neon_superuser", false),
+                format!(
+                    "CREATE ROLE \"r\" INHERIT CREATEROLE CREATEDB BYPASSRLS REPLICATION IN ROLE neon_superuser {}",
+                    r.to_pg_options()
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn create_role_query_jwks_is_plain() {
+        let r = role(None);
+        assert_eq!(
+            create_role_query(&r, "neon_superuser", true),
+            format!("CREATE ROLE \"r\" {}", r.to_pg_options())
+        );
     }
 }
