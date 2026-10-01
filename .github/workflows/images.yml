@@ -3,11 +3,11 @@ name: images
 # Publishes the Neon images to ghcr.io/cheladb (private packages), amd64 only.
 #
 #   dev       push to main and v* tags: the Postgres 17 variants
-#               neon:<sha12>-dev               storage image, PG_VERSIONS=v17
-#               compute-node-v17:<sha12>-dev   PG_VERSION=v17, EXTENSIONS=minimal
+#               neon-storage:<sha12>-dev               storage image, PG_VERSIONS=v17
+#               neon-compute-v17:<sha12>-dev   PG_VERSION=v17, EXTENSIONS=minimal
 #   platform  v* tags and workflow_dispatch only (no schedule): every major, all extensions
-#               neon:<sha12>                   storage image, PG_VERSIONS="v14 v15 v16 v17"
-#               compute-node-v1{4,5,6,7}:<sha12>   EXTENSIONS=all
+#               neon-storage:<sha12>                   storage image, PG_VERSIONS="v14 v15 v16 v17"
+#               neon-compute-v1{4,5,6,7}:<sha12>   EXTENSIONS=all
 #
 # <sha12> is the first 12 hex digits of the built commit, the same value as `neon_tag` in
 # cheladb's infra/neon/lib/tags.sh. A v* tag also publishes <tag> (platform) and <tag>-dev (dev).
@@ -106,12 +106,12 @@ jobs:
         run: |
           {
             echo "storage<<EOF"
-            echo "${REGISTRY_NS}/neon:${SHA12}-dev"
-            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/neon:${REF_TAG}-dev"
+            echo "${REGISTRY_NS}/neon-storage:${SHA12}-dev"
+            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/neon-storage:${REF_TAG}-dev"
             echo "EOF"
             echo "compute<<EOF"
-            echo "${REGISTRY_NS}/compute-node-v17:${SHA12}-dev"
-            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/compute-node-v17:${REF_TAG}-dev"
+            echo "${REGISTRY_NS}/neon-compute-v17:${SHA12}-dev"
+            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/neon-compute-v17:${REF_TAG}-dev"
             echo "EOF"
           } | tee -a "$GITHUB_OUTPUT"
 
@@ -133,7 +133,7 @@ jobs:
           provenance: false
           sbom: false
           tags: neon-dev-test:local
-          cache-from: type=registry,ref=ghcr.io/cheladb/neon:buildcache-dev
+          cache-from: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-dev
 
       - name: Test the storage image variant
         run: .github/scripts/image_variant_test.sh neon-dev-test:local
@@ -158,8 +158,8 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/ChelaDB/neon
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/cheladb/neon:buildcache-dev
-          cache-to: type=registry,ref=ghcr.io/cheladb/neon:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
+          cache-from: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-dev
+          cache-to: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
 
       - name: Push the compute image
         id: push-compute
@@ -180,8 +180,8 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/ChelaDB/neon
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/cheladb/compute-node-v17:buildcache-dev
-          cache-to: type=registry,ref=ghcr.io/cheladb/compute-node-v17:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
+          cache-from: type=registry,ref=ghcr.io/cheladb/neon-compute-v17:buildcache-dev
+          cache-to: type=registry,ref=ghcr.io/cheladb/neon-compute-v17:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
 
       - name: Digests
         env:
@@ -190,8 +190,8 @@ jobs:
         run: |
           {
             echo "### Dev images (${SHA12})"
-            echo "- neon:${SHA12}-dev \`${STORAGE_DIGEST}\`"
-            echo "- compute-node-v17:${SHA12}-dev \`${COMPUTE_DIGEST}\`"
+            echo "- neon-storage:${SHA12}-dev \`${STORAGE_DIGEST}\`"
+            echo "- neon-compute-v17:${SHA12}-dev \`${COMPUTE_DIGEST}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   platform-storage:
@@ -227,8 +227,8 @@ jobs:
         run: |
           {
             echo "storage<<EOF"
-            echo "${REGISTRY_NS}/neon:${SHA12}"
-            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/neon:${REF_TAG}"
+            echo "${REGISTRY_NS}/neon-storage:${SHA12}"
+            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/neon-storage:${REF_TAG}"
             echo "EOF"
           } | tee -a "$GITHUB_OUTPUT"
 
@@ -252,13 +252,13 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/ChelaDB/neon
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/cheladb/neon:buildcache-platform
-          cache-to: type=registry,ref=ghcr.io/cheladb/neon:buildcache-platform,mode=max,image-manifest=true,oci-mediatypes=true
+          cache-from: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-platform
+          cache-to: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-platform,mode=max,image-manifest=true,oci-mediatypes=true
 
       - name: Digest
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
-        run: echo "- neon:${SHA12} \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
+        run: echo "- neon-storage:${SHA12} \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
 
   platform-compute:
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
@@ -272,7 +272,7 @@ jobs:
     env:
       SHA12: ${{ needs.meta.outputs.sha12 }}
       REF_TAG: ${{ needs.meta.outputs.ref_tag }}
-      IMAGE_NAME: compute-node-${{ matrix.pg }}
+      IMAGE_NAME: neon-compute-${{ matrix.pg }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
