@@ -21,7 +21,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: images-${{ github.ref }}
+  # One group per commit: with a per-ref group GitHub drops the middle pending run when several
+  # pushes land on main, and that commit's <sha12>-dev would never exist.
+  group: images-${{ github.sha }}
   cancel-in-progress: false
 
 # Explicit (ruling 6): packages for the push, id-token and attestations for the attestations.
@@ -168,6 +170,7 @@ jobs:
           build-args: |
             PG_VERSION=v17
             EXTENSIONS=minimal
+            DEBIAN_VERSION=bookworm
             BUILD_TAG=${{ needs.meta.outputs.sha12 }}
           platforms: linux/amd64
           push: true
@@ -300,6 +303,9 @@ jobs:
             echo "EOF"
           } | tee -a "$GITHUB_OUTPUT"
 
+      # Upstream built v14-v16 on bullseye; we use bookworm for every major on purpose. Bullseye is
+      # EOL, and physically imported bullseye-era v14-v16 data would need a REINDEX of its
+      # collation-dependent indexes.
       - name: Push the compute image
         id: push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -309,6 +315,7 @@ jobs:
           build-args: |
             PG_VERSION=${{ matrix.pg }}
             EXTENSIONS=all
+            DEBIAN_VERSION=bookworm
             BUILD_TAG=${{ needs.meta.outputs.sha12 }}
           platforms: linux/amd64
           push: true
