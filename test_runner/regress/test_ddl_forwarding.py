@@ -328,7 +328,8 @@ def test_ddl_forwarding_invalid_db(neon_simple_env: NeonEnv):
         endpoint, "failure", -1, "Database 'failure' doesn't have a valid connlimit"
     )
 
-    with pytest.raises(psycopg2.InternalError):
+    # The control plane is unreachable: connection_failure (SQLSTATE 08006)
+    with pytest.raises(psycopg2.OperationalError):
         with endpoint.cursor() as cur:
             cur.execute("DROP DATABASE failure")
             cur.execute("COMMIT")

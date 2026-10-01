@@ -61,6 +61,7 @@ static const char *jwt_token = NULL;
 /* GUCs */
 static char *ConsoleURL = NULL;
 static bool ForwardDDL = true;
+static char *ProtectedDatabases = NULL;
 static bool RegressTestMode = false;
 
 /*
@@ -311,24 +312,32 @@ SendDeltasToControlPlane()
 			pg_usleep(1000 * 1000);
 		}
 		if (curl_status != CURLE_OK)
-			elog(ERROR, "Failed to perform curl request: %s", CurlErrorBuf);
+		{
+			/* Details (the URL included) go to the server log only */
+			elog(LOG, "Failed to perform curl request to %s: %s", ConsoleURL, CurlErrorBuf);
+			ereport(ERROR,
+					(errcode(ERRCODE_CONNECTION_FAILURE),
+					 errmsg("role and database changes are unavailable right now; try again")));
+		}
 
 		if (curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &response_code) != CURLE_UNKNOWN_OPTION)
 		{
 			if (response_code != 200)
 			{
+				elog(LOG, "Received HTTP code %ld from control plane: %s",
+					 response_code,
+					 str.size != 0 ? str.str : "");
 				if (str.size != 0)
 				{
-					elog(ERROR,
-						 "Received HTTP code %ld from control plane: %s",
-						 response_code,
-						 str.str);
+					/* The control plane's message goes to the client as is */
+					ereport(ERROR,
+							(errmsg_internal("%s", str.str)));
 				}
 				else
 				{
-					elog(ERROR,
-						 "Received HTTP code %ld from control plane",
-						 response_code);
+					ereport(ERROR,
+							(errmsg("role and database changes were refused (HTTP %ld)",
+									response_code)));
 				}
 			}
 		}
@@ -1257,6 +1266,39 @@ ProcessCreateEventTrigger(
 
 
 /*
+ * Is "dbname" listed in neon.protected_databases (comma-separated, matched
+ * exactly, no case folding)?
+ */
+static bool
+IsProtectedDatabase(const char *dbname)
+{
+	char	   *list;
+	char	   *cur;
+	bool		found = false;
+
+	if (ProtectedDatabases == NULL || ProtectedDatabases[0] == '\0')
+		return false;
+
+	list = pstrdup(ProtectedDatabases);
+	cur = list;
+	while (cur != NULL && !found)
+	{
+		char	   *end = strchr(cur, ',');
+
+		if (end != NULL)
+			*end++ = '\0';
+		while (*cur == ' ' || *cur == '\t')
+			cur++;
+		for (char *tail = cur + strlen(cur); tail > cur && (tail[-1] == ' ' || tail[-1] == '\t'); tail--)
+			tail[-1] = '\0';
+		found = (cur[0] != '\0' && strcmp(cur, dbname) == 0);
+		cur = end;
+	}
+	pfree(list);
+	return found;
+}
+
+/*
  * Neon hooks for DDLs (handling privileges, limiting features, etc).
  */
 static void
@@ -1271,6 +1313,22 @@ NeonProcessUtility(
 				   QueryCompletion *qc)
 {
 	Node	   *parseTree = pstmt->utilityStmt;
+
+	/*
+	 * Refuse to drop a protected database. This runs first, before any early
+	 * return below and before the statement itself, so the database is left
+	 * valid and its files untouched. Superusers can still drop it.
+	 */
+	if (IsA(parseTree, DropdbStmt))
+	{
+		DropdbStmt *dropstmt = castNode(DropdbStmt, parseTree);
+
+		if (IsProtectedDatabase(dropstmt->dbname) && !superuser())
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("the branch's main database \"%s\" can't be dropped",
+							dropstmt->dbname)));
+	}
 
 	/*
 	 * The process utility hook for CREATE EVENT TRIGGER is its own
@@ -1412,6 +1470,18 @@ InitDDLHandler()
 							   &ConsoleURL,
 							   NULL,
 							   PGC_POSTMASTER,
+							   0,
+							   NULL,
+							   NULL,
+							   NULL);
+
+	DefineCustomStringVariable(
+							   "neon.protected_databases",
+							   "Comma-separated databases that only a superuser can drop",
+							   NULL,
+							   &ProtectedDatabases,
+							   "",
+							   PGC_SUSET,
 							   0,
 							   NULL,
 							   NULL,
