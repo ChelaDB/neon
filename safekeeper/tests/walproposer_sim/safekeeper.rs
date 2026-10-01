@@ -87,7 +87,7 @@ impl GlobalMap {
 
     fn create(&mut self, ttid: TenantTimelineId, server_info: ServerInfo) -> Result<()> {
         if self.timelines.contains_key(&ttid) {
-            bail!("timeline {} already exists", ttid);
+            bail!("timeline {ttid} already exists");
         }
 
         debug!("creating new timeline {}", ttid);

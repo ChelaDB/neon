@@ -420,7 +420,7 @@ impl ProposerAcceptorMessage {
         buf.advance(1); // drop the null terminator
         match std::str::from_utf8(&result) {
             Ok(s) => Ok(s.to_string()),
-            Err(e) => bail!("invalid utf8 in cstring: {}", e),
+            Err(e) => bail!("invalid utf8 in cstring: {e}"),
         }
     }
 
@@ -585,10 +585,7 @@ impl ProposerAcceptorMessage {
                         .context("begin_lsn > end_lsn in AppendRequest")?
                         .0 as usize;
                     if rec_size > MAX_SEND_SIZE {
-                        bail!(
-                            "AppendRequest is longer than MAX_SEND_SIZE ({})",
-                            MAX_SEND_SIZE
-                        );
+                        bail!("AppendRequest is longer than MAX_SEND_SIZE ({MAX_SEND_SIZE})");
                     }
                     if msg_bytes.remaining() < rec_size {
                         bail!(
@@ -602,7 +599,7 @@ impl ProposerAcceptorMessage {
 
                     Ok(ProposerAcceptorMessage::AppendRequest(msg))
                 }
-                _ => bail!("unknown proposer-acceptor message tag: {}", tag),
+                _ => bail!("unknown proposer-acceptor message tag: {tag}"),
             }
         } else if proto_version == SK_PROTO_VERSION_2 {
             // xxx using Reader is inefficient but easy to work with bincode
@@ -671,10 +668,7 @@ impl ProposerAcceptorMessage {
                         .context("begin_lsn > end_lsn in AppendRequest")?
                         .0 as usize;
                     if rec_size > MAX_SEND_SIZE {
-                        bail!(
-                            "AppendRequest is longer than MAX_SEND_SIZE ({})",
-                            MAX_SEND_SIZE
-                        );
+                        bail!("AppendRequest is longer than MAX_SEND_SIZE ({MAX_SEND_SIZE})");
                     }
 
                     let mut wal_data_vec: Vec<u8> = vec![0; rec_size];
@@ -685,10 +679,10 @@ impl ProposerAcceptorMessage {
 
                     Ok(ProposerAcceptorMessage::AppendRequest(msg))
                 }
-                _ => bail!("unknown proposer-acceptor message tag: {}", tag),
+                _ => bail!("unknown proposer-acceptor message tag: {tag}"),
             }
         } else {
-            bail!("unsupported protocol version {}", proto_version);
+            bail!("unsupported protocol version {proto_version}");
         }
     }
 
@@ -860,7 +854,7 @@ impl AcceptorProposerMessage {
             }
             Ok(())
         } else {
-            bail!("unsupported protocol version {}", proto_version);
+            bail!("unsupported protocol version {proto_version}");
         }
     }
 }

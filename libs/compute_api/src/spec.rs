@@ -329,7 +329,7 @@ impl PageserverConnectionInfo {
             shard_count: self.shard_count,
         };
         let shard = self.shards.get(&shard_index).ok_or_else(|| {
-            anyhow::anyhow!("shard connection info missing for shard {}", shard_index)
+            anyhow::anyhow!("shard connection info missing for shard {shard_index}")
         })?;
 
         // Just use the first pageserver in the list. That's good enough for this
@@ -400,7 +400,7 @@ impl RemoteExtSpec {
             real_ext_name = self
                 .library_index
                 .get(&lib_raw_name)
-                .ok_or(anyhow::anyhow!("library {} is not found", lib_raw_name))?;
+                .ok_or(anyhow::anyhow!("library {lib_raw_name} is not found"))?;
         }
 
         // Check if extension is present in public or custom.
@@ -414,7 +414,7 @@ impl RemoteExtSpec {
                 .as_ref()
                 .is_some_and(|exts| exts.iter().any(|e| e == real_ext_name))
         {
-            return Err(anyhow::anyhow!("extension {} is not found", real_ext_name));
+            return Err(anyhow::anyhow!("extension {real_ext_name} is not found"));
         }
 
         match self.extension_data.get(real_ext_name) {
@@ -423,8 +423,7 @@ impl RemoteExtSpec {
                 Self::build_remote_path(build_tag, pg_major_version, real_ext_name)?,
             )),
             None => Err(anyhow::anyhow!(
-                "real_ext_name {} is not found",
-                real_ext_name
+                "real_ext_name {real_ext_name} is not found"
             )),
         }
     }

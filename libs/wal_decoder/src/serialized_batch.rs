@@ -161,11 +161,7 @@ impl SerializedValueBatch {
             let key = rel_block_to_key(rel, blk.blkno);
 
             if !key.is_valid_key_on_write_path() {
-                anyhow::bail!(
-                    "Unsupported key decoded at LSN {}: {}",
-                    next_record_lsn,
-                    key
-                );
+                anyhow::bail!("Unsupported key decoded at LSN {next_record_lsn}: {key}");
             }
 
             for (shard, record) in shard_records.iter_mut() {

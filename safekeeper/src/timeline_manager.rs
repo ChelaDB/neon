@@ -146,7 +146,7 @@ impl ManagerCtl {
 
         // wait for the manager to respond with the guard
         rx.await
-            .map_err(|e| anyhow::anyhow!("response read fail: {:?}", e))
+            .map_err(|e| anyhow::anyhow!("response read fail: {e:?}"))
             .and_then(std::convert::identity)
     }
 
@@ -160,7 +160,7 @@ impl ManagerCtl {
 
         // wait for the manager to respond with the guard
         rx.await
-            .map_err(|e| anyhow::anyhow!("response read fail: {:?}", e))
+            .map_err(|e| anyhow::anyhow!("response read fail: {e:?}"))
     }
 
     /// Request timeline manager to reset uploaded partial segment state and

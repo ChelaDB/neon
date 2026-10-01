@@ -80,7 +80,7 @@ impl MemberSet {
     pub fn new(members: Vec<SafekeeperId>) -> anyhow::Result<Self> {
         let hs: HashSet<NodeId> = HashSet::from_iter(members.iter().map(|sk| sk.id));
         if hs.len() != members.len() {
-            bail!("duplicate safekeeper id in the set {:?}", members);
+            bail!("duplicate safekeeper id in the set {members:?}");
         }
         Ok(MemberSet { m: members })
     }

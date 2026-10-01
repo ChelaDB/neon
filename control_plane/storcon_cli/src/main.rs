@@ -728,10 +728,7 @@ async fn main() -> anyhow::Result<()> {
                 .await
             {
                 Err(mgmt_api::Error::ApiError(StatusCode::PRECONDITION_FAILED, msg)) => {
-                    anyhow::bail!(
-                        "Migration to {node} rejected, may require `--force` ({}) ",
-                        msg
-                    );
+                    anyhow::bail!("Migration to {node} rejected, may require `--force` ({msg}) ");
                 }
                 Err(e) => return Err(e.into()),
                 Ok(_) => {}
@@ -903,9 +900,7 @@ async fn main() -> anyhow::Result<()> {
                     .collect::<HashSet<_>>();
                 if !azs.contains(preferred_az) {
                     anyhow::bail!(
-                        "AZ {} not found on any node: known AZs are: {:?}",
-                        preferred_az,
-                        azs
+                        "AZ {preferred_az} not found on any node: known AZs are: {azs:?}"
                     );
                 }
             } else {

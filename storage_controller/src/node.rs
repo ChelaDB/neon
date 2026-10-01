@@ -75,7 +75,7 @@ pub fn get_pool_id_from_node_id(node_id: i64) -> i32 {
 pub fn get_node_id_from_pod_name(pod_name: &str) -> anyhow::Result<NodeId> {
     let parts: Vec<&str> = pod_name.split('-').collect();
     if parts.len() != 4 {
-        return Err(anyhow::anyhow!("Invalid pod name: {}", pod_name));
+        return Err(anyhow::anyhow!("Invalid pod name: {pod_name}"));
     }
     let pool_id = parts[2].parse::<i32>()?;
     let node_offset = parts[3].parse::<i64>()?;

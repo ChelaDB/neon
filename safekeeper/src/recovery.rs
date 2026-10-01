@@ -429,7 +429,7 @@ async fn recovery_stream(
             }
         }
         Ok(Err(e)) => Err(e), // error while processing message
-        Err(e) => bail!("WalAcceptor panicked: {}", e),
+        Err(e) => bail!("WalAcceptor panicked: {e}"),
     }
 }
 
@@ -458,7 +458,7 @@ async fn network_io(
                 None => bail!("unexpected end of replication stream"),
                 Some(msg) => msg.context("get replication message")?,
             },
-            Err(_) => bail!("no message received within {:?}", no_data_timeout),
+            Err(_) => bail!("no message received within {no_data_timeout:?}"),
         };
 
         match msg {

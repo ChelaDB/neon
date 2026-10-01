@@ -746,10 +746,7 @@ impl Endpoint {
                     .shards
                     .get(&shard_index)
                     .ok_or_else(|| {
-                        anyhow!(
-                            "shard {} not found in pageserver_connection_info",
-                            shard_index
-                        )
+                        anyhow!("shard {shard_index} not found in pageserver_connection_info")
                     })?;
                 let pageserver = shard
                     .pageservers
@@ -948,10 +945,7 @@ impl Endpoint {
                         ComputeStatus::Init => {
                             let timeout = args.start_timeout;
                             if Instant::now().duration_since(start_at) > timeout {
-                                bail!(
-                                    "compute startup timed out {:?}; still in Init state",
-                                    timeout
-                                );
+                                bail!("compute startup timed out {timeout:?}; still in Init state");
                             }
                             // keep retrying
                         }

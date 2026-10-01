@@ -214,11 +214,7 @@ async fn redownload_partial_segment(
     let expected_len = partial.flush_lsn.segment_offset(mgr.wal_seg_size);
 
     if actual_len != expected_len as u64 {
-        anyhow::bail!(
-            "partial downloaded {} bytes, expected {}",
-            actual_len,
-            expected_len
-        );
+        anyhow::bail!("partial downloaded {actual_len} bytes, expected {expected_len}");
     }
 
     if actual_len > mgr.wal_seg_size as u64 {
@@ -282,11 +278,7 @@ async fn do_validation(
 ) -> anyhow::Result<()> {
     let local_size = file.metadata().await?.len() as usize;
     if local_size != wal_seg_size {
-        anyhow::bail!(
-            "local segment size is invalid: found {}, expected {}",
-            local_size,
-            wal_seg_size
-        );
+        anyhow::bail!("local segment size is invalid: found {local_size}, expected {wal_seg_size}");
     }
 
     let remote_segfile = remote_segment_path(mgr, partial);
@@ -344,7 +336,7 @@ where
             .await
             .with_context(|| format!("failed to read from reader1 at offset {offset}"))?;
         if bytes_read1 == 0 {
-            anyhow::bail!("unexpected EOF from reader1 at offset {}", offset);
+            anyhow::bail!("unexpected EOF from reader1 at offset {offset}");
         }
 
         let bytes_read2 = reader2

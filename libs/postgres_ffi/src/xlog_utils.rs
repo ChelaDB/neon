@@ -88,7 +88,7 @@ pub fn XLogFromFileName(
         let seg = u32::from_str_radix(&fname_str[16..24], 16)? as XLogSegNo;
         Ok((log * XLogSegmentsPerXLogId(wal_seg_size) + seg, tli))
     } else {
-        anyhow::bail!("non-ut8 filename: {:?}", fname);
+        anyhow::bail!("non-ut8 filename: {fname:?}");
     }
 }
 

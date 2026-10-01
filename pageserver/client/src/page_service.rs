@@ -233,7 +233,7 @@ impl PagestreamReceiver {
         let next: PagestreamBeMessage = self.recv().await?;
         match next {
             PagestreamBeMessage::GetPage(p) => Ok(p),
-            PagestreamBeMessage::Error(e) => anyhow::bail!("Error: {:?}", e),
+            PagestreamBeMessage::Error(e) => anyhow::bail!("Error: {e:?}"),
             PagestreamBeMessage::Exists(_)
             | PagestreamBeMessage::Nblocks(_)
             | PagestreamBeMessage::DbSize(_)

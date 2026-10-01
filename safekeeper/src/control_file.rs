@@ -91,11 +91,7 @@ impl FileStorage {
         // Read the version independent part
         let magic = ReadBytesExt::read_u32::<LittleEndian>(buf)?;
         if magic != SK_MAGIC {
-            bail!(
-                "bad control file magic: {:X}, expected {:X}",
-                magic,
-                SK_MAGIC
-            );
+            bail!("bad control file magic: {magic:X}, expected {SK_MAGIC:X}");
         }
         let version = ReadBytesExt::read_u32::<LittleEndian>(buf)?;
         if version == SK_FORMAT_VERSION {
@@ -141,8 +137,7 @@ impl FileStorage {
         ensure!(
             calculated_checksum == expected_checksum,
             format!(
-                "safekeeper control file checksum mismatch: expected {} got {}",
-                expected_checksum, calculated_checksum
+                "safekeeper control file checksum mismatch: expected {expected_checksum} got {calculated_checksum}"
             )
         );
 

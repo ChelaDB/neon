@@ -650,8 +650,7 @@ impl Timeline {
         let buf = RelDirExists::decode_option(version.sparse_get(self, key, ctx).await?).map_err(
             |_| {
                 PageReconstructError::Other(anyhow::anyhow!(
-                    "invalid reldir key: decode failed, {}",
-                    key
+                    "invalid reldir key: decode failed, {key}"
                 ))
             },
         )?;
@@ -782,26 +781,22 @@ impl Timeline {
         for (key, val) in results {
             let val = RelDirExists::decode(&val?).map_err(|_| {
                 PageReconstructError::Other(anyhow::anyhow!(
-                    "invalid reldir key: decode failed, {}",
-                    key
+                    "invalid reldir key: decode failed, {key}"
                 ))
             })?;
             if key.field6 != 1 {
                 return Err(PageReconstructError::Other(anyhow::anyhow!(
-                    "invalid reldir key: field6 != 1, {}",
-                    key
+                    "invalid reldir key: field6 != 1, {key}"
                 )));
             }
             if key.field2 != spcnode {
                 return Err(PageReconstructError::Other(anyhow::anyhow!(
-                    "invalid reldir key: field2 != spcnode, {}",
-                    key
+                    "invalid reldir key: field2 != spcnode, {key}"
                 )));
             }
             if key.field3 != dbnode {
                 return Err(PageReconstructError::Other(anyhow::anyhow!(
-                    "invalid reldir key: field3 != dbnode, {}",
-                    key
+                    "invalid reldir key: field3 != dbnode, {key}"
                 )));
             }
             let tag = RelTag {

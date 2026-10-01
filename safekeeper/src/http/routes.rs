@@ -621,8 +621,7 @@ async fn dump_debug_handler(mut request: Request<Body>) -> Result<Response<Body>
             "tenant_id" => tenant_id = Some(parse_kv_str(&k, &v)?),
             "timeline_id" => timeline_id = Some(parse_kv_str(&k, &v)?),
             _ => Err(ApiError::BadRequest(anyhow::anyhow!(
-                "Unknown query parameter: {}",
-                k
+                "Unknown query parameter: {k}"
             )))?,
         }
     }

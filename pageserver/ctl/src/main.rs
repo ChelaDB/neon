@@ -158,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
 
             let done_if_after = if let Some(done_if_after) = &cmd.done_if_after {
                 humantime::parse_rfc3339(done_if_after).map_err(|_e| {
-                    anyhow::anyhow!("Invalid time for done_if_after: '{}'", done_if_after)
+                    anyhow::anyhow!("Invalid time for done_if_after: '{done_if_after}'")
                 })?
             } else {
                 const SAFETY_MARGIN: Duration = Duration::from_secs(3);

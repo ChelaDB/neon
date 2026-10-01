@@ -370,7 +370,7 @@ impl BackgroundTask {
                 .metadata()
                 .await
                 .map_err(|e| {
-                    anyhow::anyhow!("Failed to read metadata for file {:?}: {:?}", filename, e)
+                    anyhow::anyhow!("Failed to read metadata for file {filename:?}: {e:?}")
                 })?
                 .len();
 
@@ -407,8 +407,7 @@ impl BackgroundTask {
                         // Two different filenames parsed to the same timline_id and LSN.
                         // Should never happen.
                         return Err(anyhow::anyhow!(
-                            "Duplicate basebackup cache entry with the same LSN: {:?}",
-                            filename
+                            "Duplicate basebackup cache entry with the same LSN: {filename:?}"
                         ));
                     }
                 }

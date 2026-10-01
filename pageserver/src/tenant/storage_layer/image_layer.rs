@@ -431,9 +431,7 @@ impl ImageLayerInner {
 
             if actual_summary != expected_summary {
                 bail!(
-                    "in-file summary does not match expected summary. actual = {:?} expected = {:?}",
-                    actual_summary,
-                    expected_summary
+                    "in-file summary does not match expected summary. actual = {actual_summary:?} expected = {expected_summary:?}"
                 );
             }
         }

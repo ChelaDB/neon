@@ -31,6 +31,45 @@ reason = "the marvin attack only affects private key decryption, not public key 
 id = "RUSTSEC-2024-0436"
 reason = "The paste crate is a build-only dependency with no runtime components. It is unlikely to have any security impact."
 
+# Fork additions (Task 3a, 2026-10-01). This list may only shrink: every entry
+# below has no fixed release reachable without replacing a dependency.
+
+[[advisories.ignore]]
+id = "RUSTSEC-2025-0141"
+reason = "bincode 1.3.3 is unmaintained but is the final, complete 1.x release; 2.x/3.x change the wire format used for on-disk and inter-service data. No drop-in replacement. Used by pageserver, safekeeper, utils and others for internal serialization."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2025-0134"
+reason = "rustls-pemfile is unmaintained (no vulnerability), only parses PEM input. Used directly by the workspace (replacement is rustls-pki-types PemObject, many call sites) and transitively by gcp_auth, reqwest and hyper-rustls 0.24 (AWS SDK legacy HTTP client)."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0258"
+reason = "h2 0.3.x has no fix (patched only in 0.4.16+). h2 0.3 comes in through hyper 0.14, which routerify (internal management HTTP APIs) and the AWS SDK legacy HTTP client still require. Removing it means dropping routerify and moving the AWS clients off the legacy connector."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0174"
+reason = "http-types 2.12.0 (unmaintained, header value ASCII check) is only used by azure_core in the neondatabase azure-sdk-for-rust fork, for Azure Blob remote storage; our code never builds Authorization or WWW-Authenticate headers from untrusted input."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0194"
+reason = "quick-xml 0.26 (inferno 0.11 via pprof 0.14) is only used through quick_xml::Writer to emit flamegraph SVG, never to parse input. quick-xml 0.31 (azure_core, neondatabase fork) parses Azure Blob service responses from the operator-configured endpoint. No release of either dependent allows quick-xml >= 0.41."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0195"
+reason = "Same quick-xml instances as RUSTSEC-2026-0194: 0.26 is writer-only (flamegraph SVG output), 0.31 parses Azure Blob service responses from the configured endpoint only."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0098"
+reason = "rustls-webpki 0.101.7 (rustls 0.21 via hyper-rustls 0.24, the AWS SDK legacy HTTP client). Name-constraint bugs only matter if a trusted CA issues a constrained certificate for the wrong name; the client only talks to AWS endpoints. No fix on the 0.101 line; moving the AWS SDK to its newer HTTPS client changes the TLS client stack."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0099"
+reason = "Same rustls-webpki 0.101.7 instance as RUSTSEC-2026-0098 (wildcard name-constraint handling; AWS SDK legacy HTTP client only)."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0104"
+reason = "Same rustls-webpki 0.101.7 instance as RUSTSEC-2026-0098. The panic is in CRL parsing; the AWS SDK legacy client never configures certificate revocation lists."
+
 # This section is considered when running `cargo deny check licenses`
 # More documentation for the licenses section can be found here:
 # https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html

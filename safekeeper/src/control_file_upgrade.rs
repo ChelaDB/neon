@@ -519,7 +519,7 @@ pub fn upgrade_control_file(buf: &[u8], version: u32) -> Result<TimelinePersiste
     // TODO: persist the file back to the disk after upgrade
     // TODO: think about backward compatibility and rollbacks
 
-    bail!("unsupported safekeeper control file version {}", version)
+    bail!("unsupported safekeeper control file version {version}")
 }
 
 // Used as a temp hack to make forward compatibility test work. Should be

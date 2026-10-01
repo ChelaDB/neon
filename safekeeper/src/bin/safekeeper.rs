@@ -800,11 +800,7 @@ fn set_id(workdir: &Utf8Path, given_id: Option<NodeId>) -> Result<NodeId> {
             );
             if let Some(given_id) = given_id {
                 if given_id != my_id {
-                    bail!(
-                        "safekeeper already initialized with id {}, can't set {}",
-                        my_id,
-                        given_id
-                    );
+                    bail!("safekeeper already initialized with id {my_id}, can't set {given_id}");
                 }
             }
             info!("safekeeper ID {}", my_id);

@@ -2858,10 +2858,7 @@ impl PageStreamCmd {
     fn parse(query: &str, protocol_version: PagestreamProtocolVersion) -> anyhow::Result<Self> {
         let parameters = query.split_whitespace().collect_vec();
         if parameters.len() != 2 {
-            bail!(
-                "invalid number of parameters for pagestream command: {}",
-                query
-            );
+            bail!("invalid number of parameters for pagestream command: {query}");
         }
         let tenant_id = TenantId::from_str(parameters[0])
             .with_context(|| format!("Failed to parse tenant id from {}", parameters[0]))?;
@@ -2879,10 +2876,7 @@ impl FullBackupCmd {
     fn parse(query: &str) -> anyhow::Result<Self> {
         let parameters = query.split_whitespace().collect_vec();
         if parameters.len() < 2 || parameters.len() > 4 {
-            bail!(
-                "invalid number of parameters for basebackup command: {}",
-                query
-            );
+            bail!("invalid number of parameters for basebackup command: {query}");
         }
         let tenant_id = TenantId::from_str(parameters[0])
             .with_context(|| format!("Failed to parse tenant id from {}", parameters[0]))?;
@@ -2918,10 +2912,7 @@ impl BaseBackupCmd {
     fn parse(query: &str) -> anyhow::Result<Self> {
         let parameters = query.split_whitespace().collect_vec();
         if parameters.len() < 2 {
-            bail!(
-                "invalid number of parameters for basebackup command: {}",
-                query
-            );
+            bail!("invalid number of parameters for basebackup command: {query}");
         }
         let tenant_id = TenantId::from_str(parameters[0])
             .with_context(|| format!("Failed to parse tenant id from {}", parameters[0]))?;
@@ -2982,10 +2973,7 @@ impl LeaseLsnCmd {
     fn parse(query: &str) -> anyhow::Result<Self> {
         let parameters = query.split_whitespace().collect_vec();
         if parameters.len() != 3 {
-            bail!(
-                "invalid number of parameters for lease lsn command: {}",
-                query
-            );
+            bail!("invalid number of parameters for lease lsn command: {query}");
         }
         let tenant_shard_id = TenantShardId::from_str(parameters[0])
             .with_context(|| format!("Failed to parse tenant id from {}", parameters[0]))?;

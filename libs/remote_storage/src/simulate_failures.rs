@@ -231,10 +231,7 @@ impl RemoteStorage for UnreliableWrapper {
             }
         }
         if error_counter > 0 {
-            return Err(anyhow::anyhow!(
-                "failed to delete {} objects",
-                error_counter
-            ));
+            return Err(anyhow::anyhow!("failed to delete {error_counter} objects"));
         }
         Ok(())
     }

@@ -384,7 +384,7 @@ pub fn wait_for_postgres(pg: &mut Child, pgdata: &Path) -> Result<()> {
         if let Ok(Some(status)) = pg.try_wait() {
             // Postgres exited, that is not what we expected, bail out earlier.
             let code = status.code().unwrap_or(-1);
-            bail!("Postgres exited unexpectedly with code {}", code);
+            bail!("Postgres exited unexpectedly with code {code}");
         }
 
         let res = rx.recv_timeout(Duration::from_millis(100));
