@@ -45,7 +45,7 @@ fn build_node_registeration_request(
     // Need the `[1..]` to remove the leading ':'.
     let pg_port = pg_port_str[1..]
         .parse::<u16>()
-        .map_err(|e| anyhow::anyhow!("Cannot parse PG port: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Cannot parse PG port: {e}"))?;
 
     let (_, http_port_str) = conf.listen_http_addr.split_at(
         conf.listen_http_addr
@@ -54,7 +54,7 @@ fn build_node_registeration_request(
     );
     let http_port = http_port_str[1..]
         .parse::<u16>()
-        .map_err(|e| anyhow::anyhow!("Cannot parse HTTP port: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Cannot parse HTTP port: {e}"))?;
 
     Ok(NodeRegisterRequest {
         node_id: conf.my_id,
@@ -412,7 +412,7 @@ pub fn get_filesystem_capacity(path: &std::path::Path) -> Result<u64> {
             };
             Ok(stat.blocks() as u64 * blocksz as u64)
         }
-        Err(e) => Err(anyhow!("Failed to read filesystem capacity: {:?}", e)),
+        Err(e) => Err(anyhow!("Failed to read filesystem capacity: {e:?}")),
     }
 }
 

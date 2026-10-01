@@ -465,7 +465,7 @@ async fn upload_backup_events(
     let remote_path = match RemotePath::from_string(&path) {
         Ok(remote_path) => remote_path,
         Err(e) => {
-            bail!("failed to create remote path from str {path}: {:?}", e);
+            bail!("failed to create remote path from str {path}: {e:?}");
         }
     };
 

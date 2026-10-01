@@ -2753,10 +2753,7 @@ impl TenantShard {
                     if ancestor_ancestor_lsn > *lsn {
                         // can we safely just branch from the ancestor instead?
                         return Err(CreateTimelineError::AncestorLsn(anyhow::anyhow!(
-                            "invalid start lsn {} for ancestor timeline {}: less than timeline ancestor lsn {}",
-                            lsn,
-                            ancestor_timeline_id,
-                            ancestor_ancestor_lsn,
+                            "invalid start lsn {lsn} for ancestor timeline {ancestor_timeline_id}: less than timeline ancestor lsn {ancestor_ancestor_lsn}",
                         )));
                     }
 
@@ -5891,7 +5888,7 @@ pub async fn dump_layerfile_from_path(
                 .dump(verbose, ctx)
                 .await?
         }
-        magic => bail!("unrecognized magic identifier: {:?}", magic),
+        magic => bail!("unrecognized magic identifier: {magic:?}"),
     }
 
     Ok(())

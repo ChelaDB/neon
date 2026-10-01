@@ -255,7 +255,7 @@ impl Test {
 
         let res = wp.thread.result();
         if res.0 != 0 {
-            anyhow::bail!("non-zero exitcode: {:?}", res);
+            anyhow::bail!("non-zero exitcode: {res:?}");
         }
         let lsn = Lsn::from_str(&res.1)?;
         Ok(lsn)

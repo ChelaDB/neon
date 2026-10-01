@@ -574,9 +574,7 @@ impl PostHogClient {
         let body = response.text().await?;
         if !status.is_success() {
             return Err(anyhow::anyhow!(
-                "Failed to get feature flags: {}, {}",
-                status,
-                body
+                "Failed to get feature flags: {status}, {body}"
             ));
         }
         Ok(body)
@@ -624,9 +622,7 @@ impl PostHogClient {
         let body = response.text().await?;
         if !status.is_success() {
             return Err(anyhow::anyhow!(
-                "Failed to capture events: {}, {}",
-                status,
-                body
+                "Failed to capture events: {status}, {body}"
             ));
         }
         Ok(())
@@ -648,9 +644,7 @@ impl PostHogClient {
         let body = response.text().await?;
         if !status.is_success() {
             return Err(anyhow::anyhow!(
-                "Failed to capture events: {}, {}",
-                status,
-                body
+                "Failed to capture events: {status}, {body}"
             ));
         }
         Ok(())

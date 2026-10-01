@@ -633,8 +633,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> PostgresBackend<IO> {
                 }
                 Some(m) => {
                     return Err(QueryError::Other(anyhow::anyhow!(
-                        "Unexpected message {:?} while waiting for handshake",
-                        m
+                        "Unexpected message {m:?} while waiting for handshake"
                     )));
                 }
                 None => {

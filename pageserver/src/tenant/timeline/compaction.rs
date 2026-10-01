@@ -643,8 +643,7 @@ impl GcCompactionQueue {
                             self.notify_and_unblock(id);
                             self.clear_running_job();
                             return Err(CompactionError::Other(anyhow!(
-                                "cannot run gc-compaction because gc is blocked: {}",
-                                e
+                                "cannot run gc-compaction because gc is blocked: {e}"
                             )));
                         }
                     };
@@ -670,8 +669,7 @@ impl GcCompactionQueue {
                     Err(e) => {
                         self.clear_running_job();
                         return Err(CompactionError::Other(anyhow!(
-                            "cannot run gc-compaction because gc is blocked: {}",
-                            e
+                            "cannot run gc-compaction because gc is blocked: {e}"
                         )));
                     }
                 };
@@ -975,7 +973,7 @@ impl KeyHistoryRetention {
                 if skip_empty {
                     return Ok(());
                 }
-                anyhow::bail!("verification failed: key {} has no history at {}", key, lsn);
+                anyhow::bail!("verification failed: key {key} has no history at {lsn}");
             };
 
             let mut records = history
@@ -3016,10 +3014,7 @@ impl Timeline {
         }
         if estimated_memory_usage_mb > 1024.0 {
             return Err(CompactionError::Other(anyhow!(
-                "estimated memory usage is too high: {}MB, giving up compaction; num_image_layers={}, num_delta_layers={}",
-                estimated_memory_usage_mb,
-                num_image_layers,
-                num_delta_layers
+                "estimated memory usage is too high: {estimated_memory_usage_mb}MB, giving up compaction; num_image_layers={num_image_layers}, num_delta_layers={num_delta_layers}"
             )));
         }
         Ok(())
@@ -3517,8 +3512,7 @@ impl Timeline {
             .collect_vec();
         if let Some(err) = check_valid_layermap(&layer_names) {
             return Err(CompactionError::Other(anyhow!(
-                "gc-compaction layer map check failed because {}, cannot proceed with compaction due to potential data loss",
-                err
+                "gc-compaction layer map check failed because {err}, cannot proceed with compaction due to potential data loss"
             )));
         }
         // The maximum LSN we are processing in this compaction loop
@@ -4101,8 +4095,7 @@ impl Timeline {
         // in the writer before finalizing the persistent layers. Now we would leave some dangling layers on the disk if the check fails.
         if let Some(err) = check_valid_layermap(&final_layers) {
             return Err(CompactionError::Other(anyhow!(
-                "gc-compaction layer map check failed after compaction because {}, compaction result not applied to the layer map due to potential data loss",
-                err
+                "gc-compaction layer map check failed after compaction because {err}, compaction result not applied to the layer map due to potential data loss"
             )));
         }
 

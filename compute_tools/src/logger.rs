@@ -140,7 +140,7 @@ pub fn update_ids(instance_id: &Option<String>, compute_id: &Option<String>) -> 
     );
     let mut guard = IDS
         .write()
-        .map_err(|e| anyhow::anyhow!("Log set id's rwlock poisoned: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Log set id's rwlock poisoned: {e}"))?;
     *guard = ids;
     Ok(())
 }

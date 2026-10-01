@@ -155,12 +155,12 @@ pub fn encode_file_value(files: &[(&str, &[u8])]) -> anyhow::Result<Vec<u8>> {
     encoded.put_u8(AUX_FILE_ENCODING_VERSION);
     for (path, content) in files {
         if path.len() > u32::MAX as usize {
-            anyhow::bail!("{} exceeds path size limit", path);
+            anyhow::bail!("{path} exceeds path size limit");
         }
         encoded.put_u32(path.len() as u32);
         encoded.put_slice(path.as_bytes());
         if content.len() > u32::MAX as usize {
-            anyhow::bail!("{} exceeds content size limit", path);
+            anyhow::bail!("{path} exceeds content size limit");
         }
         encoded.put_u32(content.len() as u32);
         encoded.put_slice(content);

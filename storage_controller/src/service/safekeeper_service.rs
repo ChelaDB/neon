@@ -502,7 +502,7 @@ impl Service {
 
         let Some(timeline) = timeline else {
             return Err(ApiError::NotFound(
-                anyhow::anyhow!("Timeline {}/{} not found", tenant_id, timeline_id).into(),
+                anyhow::anyhow!("Timeline {tenant_id}/{timeline_id} not found").into(),
             ));
         };
 

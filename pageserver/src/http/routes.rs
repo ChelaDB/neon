@@ -290,7 +290,7 @@ impl From<GetActiveTenantError> for ApiError {
     fn from(e: GetActiveTenantError) -> ApiError {
         match e {
             GetActiveTenantError::Broken(reason) => {
-                ApiError::InternalServerError(anyhow!("tenant is broken: {}", reason))
+                ApiError::InternalServerError(anyhow!("tenant is broken: {reason}"))
             }
             GetActiveTenantError::WillNotBecomeActive(TenantState::Stopping { .. }) => {
                 ApiError::ShuttingDown
@@ -3039,7 +3039,7 @@ async fn secondary_download_handler(
         .get_secondary_tenant_shard(tenant_shard_id)
     else {
         return Err(ApiError::NotFound(
-            anyhow::anyhow!("Shard {} not found", tenant_shard_id).into(),
+            anyhow::anyhow!("Shard {tenant_shard_id} not found").into(),
         ));
     };
 
@@ -3144,7 +3144,7 @@ async fn secondary_status_handler(
         .get_secondary_tenant_shard(tenant_shard_id)
     else {
         return Err(ApiError::NotFound(
-            anyhow::anyhow!("Shard {} not found", tenant_shard_id).into(),
+            anyhow::anyhow!("Shard {tenant_shard_id} not found").into(),
         ));
     };
 

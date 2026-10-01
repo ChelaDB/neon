@@ -51,7 +51,7 @@ pub async fn stream_snapshot(
 ) {
     match tli.try_wal_residence_guard().await {
         Err(e) => {
-            tx.send(Err(anyhow!("Error checking residence: {:#}", e)))
+            tx.send(Err(anyhow!("Error checking residence: {e:#}")))
                 .await
                 .ok();
         }
@@ -379,9 +379,7 @@ impl WalResidentTimeline {
         let num_segs = upto_segno - from_segno + 1;
         if num_segs > MAX_ALLOWED_SEGS {
             bail!(
-                "snapshot is called on timeline with {} segments, but the limit is {}",
-                num_segs,
-                MAX_ALLOWED_SEGS
+                "snapshot is called on timeline with {num_segs} segments, but the limit is {MAX_ALLOWED_SEGS}"
             );
         }
 

@@ -161,8 +161,7 @@ where
     }
     println!();
     anyhow::bail!(format!(
-        "{} did not start+pass status checks within {:?} seconds",
-        process_name, retry_timeout
+        "{process_name} did not start+pass status checks within {retry_timeout:?} seconds"
     ));
 }
 
@@ -245,8 +244,7 @@ pub fn wait_until_stopped(process_name: &str, pid: Pid) -> anyhow::Result<()> {
     }
     println!();
     anyhow::bail!(format!(
-        "{} with pid {} did not stop in {:?} seconds",
-        process_name, pid, STOP_RETRY_TIMEOUT
+        "{process_name} with pid {pid} did not stop in {STOP_RETRY_TIMEOUT:?} seconds"
     ));
 }
 

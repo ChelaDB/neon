@@ -3051,7 +3051,7 @@ impl Service {
         let tenant_shards = self.persistence.load_tenant(tenant_id).await?;
         if tenant_shards.is_empty() {
             return Err(ApiError::NotFound(
-                anyhow::anyhow!("Tenant {} not found", tenant_id).into(),
+                anyhow::anyhow!("Tenant {tenant_id} not found").into(),
             ));
         }
 
@@ -3533,8 +3533,7 @@ impl Service {
                     .await
                     .map_err(|e| {
                         ApiError::InternalServerError(anyhow::anyhow!(
-                            "Error doing time travel recovery for shard {tenant_shard_id} on node {}: {e}",
-                            node
+                            "Error doing time travel recovery for shard {tenant_shard_id} on node {node}: {e}"
                         ))
                     })?;
             }
@@ -3637,7 +3636,7 @@ impl Service {
                     None => {
                         // No shards found
                         Err(ApiError::NotFound(
-                            anyhow::anyhow!("Tenant {} not found", tenant_id).into(),
+                            anyhow::anyhow!("Tenant {tenant_id} not found").into(),
                         ))
                     }
                 }
@@ -4242,8 +4241,7 @@ impl Service {
                     .tenants
                     .get(&tenant_shard_id)
                     .ok_or(ApiError::InternalServerError(anyhow::anyhow!(
-                        "{} shard not found",
-                        tenant_shard_id
+                        "{tenant_shard_id} shard not found"
                     )))?;
 
             if tenant_shard.generation != Some(generation) {
@@ -4262,8 +4260,7 @@ impl Service {
             db_generations
                 .pop()
                 .ok_or(ApiError::InternalServerError(anyhow::anyhow!(
-                    "{} shard not found",
-                    tenant_shard_id
+                    "{tenant_shard_id} shard not found"
                 )))?;
 
         if db_generation != Some(generation) {
@@ -6321,7 +6318,7 @@ impl Service {
                         // No shards found to split, and no existing children found: the
                         // tenant doesn't exist at all.
                         return Err(ApiError::NotFound(
-                            anyhow::anyhow!("Tenant {} not found", tenant_id).into(),
+                            anyhow::anyhow!("Tenant {tenant_id} not found").into(),
                         ));
                     }
                 }
@@ -7671,8 +7668,7 @@ impl Service {
             ) {
                 (true, true) => {
                     return Err(ApiError::InternalServerError(anyhow::anyhow!(
-                        "{} attached as primary+secondary on the same node",
-                        tid
+                        "{tid} attached as primary+secondary on the same node"
                     )));
                 }
                 (true, false) => Some(false),
@@ -7924,7 +7920,7 @@ impl Service {
                 let locked = self.inner.read().unwrap();
                 let Some(node) = locked.nodes.get(&node_id) else {
                     return Err(ApiError::NotFound(
-                        anyhow::anyhow!("Node {} not registered", node_id).into(),
+                        anyhow::anyhow!("Node {node_id} not registered").into(),
                     ));
                 };
 
@@ -8174,7 +8170,7 @@ impl Service {
             let locked = self.inner.read().unwrap();
             let nodes = &locked.nodes;
             let node = nodes.get(&node_id).ok_or(ApiError::NotFound(
-                anyhow::anyhow!("Node {} not registered", node_id).into(),
+                anyhow::anyhow!("Node {node_id} not registered").into(),
             ))?;
             let schedulable_nodes_count = nodes
                 .iter()
@@ -8283,7 +8279,7 @@ impl Service {
             let locked = self.inner.read().unwrap();
             let nodes = &locked.nodes;
             nodes.get(&node_id).ok_or(ApiError::NotFound(
-                anyhow::anyhow!("Node {} not registered", node_id).into(),
+                anyhow::anyhow!("Node {node_id} not registered").into(),
             ))?;
         }
 
@@ -8310,7 +8306,7 @@ impl Service {
             let locked = self.inner.read().unwrap();
             let nodes = &locked.nodes;
             let node = nodes.get(&node_id).ok_or(ApiError::NotFound(
-                anyhow::anyhow!("Node {} not registered", node_id).into(),
+                anyhow::anyhow!("Node {node_id} not registered").into(),
             ))?;
             let schedulable_nodes_count = nodes
                 .iter()
@@ -8413,7 +8409,7 @@ impl Service {
             let locked = self.inner.read().unwrap();
             let nodes = &locked.nodes;
             let node = nodes.get(&node_id).ok_or(ApiError::NotFound(
-                anyhow::anyhow!("Node {} not registered", node_id).into(),
+                anyhow::anyhow!("Node {node_id} not registered").into(),
             ))?;
 
             node.is_available()
@@ -8445,7 +8441,7 @@ impl Service {
             let locked = self.inner.read().unwrap();
             let nodes = &locked.nodes;
             let node = nodes.get(&node_id).ok_or(ApiError::NotFound(
-                anyhow::anyhow!("Node {} not registered", node_id).into(),
+                anyhow::anyhow!("Node {node_id} not registered").into(),
             ))?;
 
             (
@@ -8544,7 +8540,7 @@ impl Service {
             let locked = self.inner.read().unwrap();
             let nodes = &locked.nodes;
             let node = nodes.get(&node_id).ok_or(ApiError::NotFound(
-                anyhow::anyhow!("Node {} not registered", node_id).into(),
+                anyhow::anyhow!("Node {node_id} not registered").into(),
             ))?;
 
             node.is_available()

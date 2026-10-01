@@ -427,12 +427,12 @@ impl From<TimelineError> for ApiError {
     fn from(te: TimelineError) -> ApiError {
         match te {
             TimelineError::NotFound(ttid) => {
-                ApiError::NotFound(anyhow!("timeline {} not found", ttid).into())
+                ApiError::NotFound(anyhow!("timeline {ttid} not found").into())
             }
             TimelineError::Deleted(ttid) => {
-                ApiError::NotFound(anyhow!("timeline {} deleted", ttid).into())
+                ApiError::NotFound(anyhow!("timeline {ttid} deleted").into())
             }
-            _ => ApiError::InternalServerError(anyhow!("{}", te)),
+            _ => ApiError::InternalServerError(anyhow!("{te}")),
         }
     }
 }
@@ -1091,9 +1091,7 @@ impl WalResidentTimeline {
             if disk_usage_bytes > max_timeline_disk_usage_bytes {
                 WAL_STORAGE_LIMIT_ERRORS.inc();
                 bail!(
-                    "WAL storage utilization exceeds configured limit of {} bytes: current disk usage: {} bytes",
-                    max_timeline_disk_usage_bytes,
-                    disk_usage_bytes
+                    "WAL storage utilization exceeds configured limit of {max_timeline_disk_usage_bytes} bytes: current disk usage: {disk_usage_bytes} bytes"
                 );
             }
         }

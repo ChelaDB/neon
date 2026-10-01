@@ -156,9 +156,7 @@ pub async fn download_extension(
             Ok(buffer) => buffer,
             Err(error_message) => {
                 return Err(anyhow::anyhow!(
-                    "error downloading extension {:?}: {:?}",
-                    ext_name,
-                    error_message
+                    "error downloading extension {ext_name:?}: {error_message:?}"
                 ));
             }
         };

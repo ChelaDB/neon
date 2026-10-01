@@ -570,12 +570,11 @@ impl MetadataRecord {
                             flags = pg_constants::VISIBILITYMAP_ALL_FROZEN;
                         }
                     }
-                    info => anyhow::bail!("Unknown WAL record type for Neon RMGR: {}", info),
+                    info => anyhow::bail!("Unknown WAL record type for Neon RMGR: {info}"),
                 }
             }
             PgMajorVersion::PG15 | PgMajorVersion::PG14 => anyhow::bail!(
-                "Neon RMGR has no known compatibility with PostgreSQL version {}",
-                pg_version
+                "Neon RMGR has no known compatibility with PostgreSQL version {pg_version}"
             ),
         }
 

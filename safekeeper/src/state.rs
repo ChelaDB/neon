@@ -107,11 +107,7 @@ impl TimelinePersistentState {
         }
 
         if commit_lsn < start_lsn {
-            bail!(
-                "commit_lsn {} is smaller than start_lsn {}",
-                commit_lsn,
-                start_lsn
-            );
+            bail!("commit_lsn {commit_lsn} is smaller than start_lsn {start_lsn}");
         }
 
         // If we are given with init LSN, initialize term history with it. It

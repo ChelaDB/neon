@@ -69,7 +69,7 @@ impl Conf {
 
     fn new_pg_command(&self, command: impl AsRef<Path>) -> anyhow::Result<Command> {
         let path = self.pg_bin_dir()?.join(command);
-        ensure!(path.exists(), "Command {:?} does not exist", path);
+        ensure!(path.exists(), "Command {path:?} does not exist");
         let mut cmd = Command::new(path);
         cmd.env_clear()
             .env("LD_LIBRARY_PATH", self.pg_lib_dir()?)
@@ -318,9 +318,7 @@ impl Crafter for LastWalRecordXlogSwitch {
         );
         ensure!(
             xlog_switch_record_end <= next_segment,
-            "XLOG_SWITCH record ended after the expected segment boundary: {} > {}",
-            xlog_switch_record_end,
-            next_segment
+            "XLOG_SWITCH record ended after the expected segment boundary: {xlog_switch_record_end} > {next_segment}"
         );
         Ok(vec![before_xlog_switch, xlog_switch_record_end])
     }

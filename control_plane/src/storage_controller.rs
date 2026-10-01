@@ -768,8 +768,7 @@ impl StorageController {
             Some(PG_NO_DATA_DIR) => Ok(false),
             Some(PG_STATUS_RUNNING) => Ok(true),
             Some(code) => Err(anyhow::anyhow!(
-                "pg_ctl status returned unexpected status code: {:?}",
-                code
+                "pg_ctl status returned unexpected status code: {code:?}"
             )),
             None => Err(anyhow::anyhow!("pg_ctl status returned no status code")),
         }
@@ -785,7 +784,7 @@ impl StorageController {
             "status" | "ready" => Ok(None),
             "control" | "debug" => Ok(Some(Claims::new(None, Scope::Admin))),
             "v1" => Ok(Some(Claims::new(None, Scope::PageServerApi))),
-            _ => Err(anyhow::anyhow!("Failed to determine claims for {}", path)),
+            _ => Err(anyhow::anyhow!("Failed to determine claims for {path}")),
         }
     }
 

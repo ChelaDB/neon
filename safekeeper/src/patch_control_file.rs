@@ -75,10 +75,10 @@ fn json_apply_diff(
             if let Some(existing_value) = object.get_mut(key) {
                 *existing_value = new_value.clone();
             } else {
-                anyhow::bail!("key not found in original object: {}", key);
+                anyhow::bail!("key not found in original object: {key}");
             }
         } else {
-            anyhow::bail!("key not found in request.updates: {}", key);
+            anyhow::bail!("key not found in request.updates: {key}");
         }
     }
 

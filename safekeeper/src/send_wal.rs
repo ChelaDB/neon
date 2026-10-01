@@ -748,7 +748,7 @@ impl EndWatch {
                 let curr_term = rx.borrow().term;
                 if let Some(client_term) = client_term {
                     if curr_term != client_term {
-                        bail!("term changed: requested {}, now {}", client_term, curr_term);
+                        bail!("term changed: requested {client_term}, now {curr_term}");
                     }
                 }
             }
@@ -964,7 +964,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> WalSender<'_, IO> {
                     let curr_term = rx.borrow().term;
                     if let Some(client_term) = self.term {
                         if curr_term != client_term {
-                            bail!("term changed: requested {}, now {}", client_term, curr_term);
+                            bail!("term changed: requested {client_term}, now {curr_term}");
                         }
                     }
                 }

@@ -236,7 +236,7 @@ impl ComputeMonitor {
                     }
                 }
                 Err(e) => {
-                    return Err(anyhow::anyhow!("could not get database statistics: {}", e));
+                    return Err(anyhow::anyhow!("could not get database statistics: {e}"));
                 }
             }
         }
@@ -261,10 +261,7 @@ impl ComputeMonitor {
                 _ => {}
             },
             Err(e) => {
-                return Err(anyhow::anyhow!(
-                    "could not get backends state change: {}",
-                    e
-                ));
+                return Err(anyhow::anyhow!("could not get backends state change: {e}"));
             }
         }
 
@@ -288,7 +285,7 @@ impl ComputeMonitor {
                 }
             },
             Err(e) => {
-                return Err(anyhow::anyhow!("failed to get list of walsenders: {}", e));
+                return Err(anyhow::anyhow!("failed to get list of walsenders: {e}"));
             }
         }
 
@@ -307,15 +304,13 @@ impl ComputeMonitor {
                 }
                 Err(e) => {
                     return Err(anyhow::anyhow!(
-                        "failed to parse 'pg_stat_subscription' count: {}",
-                        e
+                        "failed to parse 'pg_stat_subscription' count: {e}"
                     ));
                 }
             },
             Err(e) => {
                 return Err(anyhow::anyhow!(
-                    "failed to get list of active logical replication subscriptions: {}",
-                    e
+                    "failed to get list of active logical replication subscriptions: {e}"
                 ));
             }
         }
@@ -333,15 +328,13 @@ impl ComputeMonitor {
                 }
                 Err(e) => {
                     return Err(anyhow::anyhow!(
-                        "failed to parse autovacuum workers count: {}",
-                        e
+                        "failed to parse autovacuum workers count: {e}"
                     ));
                 }
             },
             Err(e) => {
                 return Err(anyhow::anyhow!(
-                    "failed to get list of autovacuum workers: {}",
-                    e
+                    "failed to get list of autovacuum workers: {e}"
                 ));
             }
         }
@@ -420,18 +413,18 @@ fn get_database_stats(cli: &mut Client) -> anyhow::Result<(f64, i64)> {
     let stats = match stats {
         Ok(stats) => stats,
         Err(e) => {
-            return Err(anyhow::anyhow!("could not query active_time: {}", e));
+            return Err(anyhow::anyhow!("could not query active_time: {e}"));
         }
     };
 
     let active_time: f64 = match stats.try_get("total_active_time") {
         Ok(active_time) => active_time,
-        Err(e) => return Err(anyhow::anyhow!("could not get total_active_time: {}", e)),
+        Err(e) => return Err(anyhow::anyhow!("could not get total_active_time: {e}")),
     };
 
     let sessions: i64 = match stats.try_get("total_sessions") {
         Ok(sessions) => sessions,
-        Err(e) => return Err(anyhow::anyhow!("could not get total_sessions: {}", e)),
+        Err(e) => return Err(anyhow::anyhow!("could not get total_sessions: {e}")),
     };
 
     Ok((active_time, sessions))
@@ -489,7 +482,7 @@ fn get_backends_state_change(cli: &mut Client) -> anyhow::Result<Option<DateTime
             }
         }
         Err(e) => {
-            return Err(anyhow::anyhow!("could not query backends: {}", e));
+            return Err(anyhow::anyhow!("could not query backends: {e}"));
         }
     }
 

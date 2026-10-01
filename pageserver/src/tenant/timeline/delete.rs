@@ -255,10 +255,7 @@ impl DeleteTimelineFlow {
                         return Ok(());
                     }
                     Err(e) => {
-                        return Err(DeleteTimelineError::Other(anyhow::anyhow!(
-                            "error: {:?}",
-                            e
-                        )));
+                        return Err(DeleteTimelineError::Other(anyhow::anyhow!("error: {e:?}")));
                     }
                 };
                 let index_part = match result {

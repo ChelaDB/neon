@@ -78,7 +78,7 @@ fn configurator_main_loop(compute: &Arc<ComputeNode>) {
                             Ok(config) => Ok(config),
                             Err(e) => {
                                 error!("could not parse config file: {}", e);
-                                Err(anyhow::anyhow!("could not parse config file: {}", e))
+                                Err(anyhow::anyhow!("could not parse config file: {e}"))
                             }
                         }
                     } else {

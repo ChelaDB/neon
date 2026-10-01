@@ -2013,9 +2013,7 @@ impl Timeline {
                     // whether it is a initial lease creation or a renewal.
                     if (init || validate) && lsn < planned_cutoff {
                         bail!(
-                            "tried to request an lsn lease for an lsn below the planned gc cutoff. requested at {} planned gc cutoff {}",
-                            lsn,
-                            planned_cutoff
+                            "tried to request an lsn lease for an lsn below the planned gc cutoff. requested at {lsn} planned gc cutoff {planned_cutoff}"
                         );
                     }
 
@@ -4850,9 +4848,7 @@ impl Timeline {
         let last_record_lsn = self.get_last_record_lsn();
         ensure!(
             lsn > last_record_lsn,
-            "cannot modify relation after advancing last_record_lsn (incoming_lsn={}, last_record_lsn={})",
-            lsn,
-            last_record_lsn,
+            "cannot modify relation after advancing last_record_lsn (incoming_lsn={lsn}, last_record_lsn={last_record_lsn})",
         );
 
         let layer = guard
@@ -7941,8 +7937,7 @@ impl TimelineWriter<'_> {
         use utils::bin_ser::BeSer;
         if !key.is_valid_key_on_write_path() {
             bail!(
-                "the request contains data not supported by pageserver at TimelineWriter::put: {}",
-                key
+                "the request contains data not supported by pageserver at TimelineWriter::put: {key}"
             );
         }
         let val_ser_size = value.serialized_size().unwrap() as usize;

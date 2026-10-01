@@ -55,8 +55,7 @@ impl<'m> MigrationRunner<'m> {
 
             if fail {
                 return Err(anyhow::anyhow!(format!(
-                    "migration {} was configured to fail because of a failpoint",
-                    migration_id
+                    "migration {migration_id} was configured to fail because of a failpoint"
                 )));
             }
         }
