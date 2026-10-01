@@ -548,6 +548,10 @@ pub struct Role {
     pub name: PgIdent,
     pub encrypted_password: Option<String>,
     pub options: GenericOptions,
+    /// `Some(false)` creates a plain role: no extra privileges and no membership
+    /// in the privileged role. `None` and `Some(true)` keep the default behaviour.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub privileged: Option<bool>,
 }
 
 /// Rust representation of Postgres database info with only those fields
@@ -674,6 +678,33 @@ mod tests {
     use std::fs::File;
 
     use super::*;
+
+    #[test]
+    fn role_privileged_absent_is_none_and_not_serialized() {
+        let role: Role = serde_json::from_value(serde_json::json!({
+            "name": "r",
+            "encrypted_password": null,
+            "options": null,
+        }))
+        .unwrap();
+        assert_eq!(role.privileged, None);
+        let v = serde_json::to_value(&role).unwrap();
+        assert!(v.as_object().unwrap().get("privileged").is_none());
+    }
+
+    #[test]
+    fn role_privileged_false_deserializes() {
+        let role: Role = serde_json::from_value(serde_json::json!({
+            "name": "r",
+            "encrypted_password": null,
+            "options": null,
+            "privileged": false,
+        }))
+        .unwrap();
+        assert_eq!(role.privileged, Some(false));
+        let v = serde_json::to_value(&role).unwrap();
+        assert_eq!(v["privileged"], serde_json::json!(false));
+    }
 
     #[test]
     fn allow_installing_remote_extensions() {
