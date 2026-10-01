@@ -17,8 +17,8 @@
 #
 # Steps (each in its own `docker run --rm` of the build-tools image, as the
 # image's `nonroot` user, mirroring pr.yml's jobs and commands):
-#   lint        self-tests, actionlint, cargo fmt, clippy, cargo deny (advisories
-#               are report-only, as in pr.yml), ruff, mypy
+#   lint        self-tests, actionlint, cargo fmt, clippy, cargo deny (advisories,
+#               bans, licenses, sources; all blocking, as in pr.yml), ruff, mypy
 #   build       Postgres <pg> + extensions + Rust binaries (`make ... all`)
 #   rust-tests  Postgres v14-v17 + extensions, cargo test --doc, cargo nextest
 #   regress     (only with --regress) pytest test_runner/regress in one process with -n <workers> and
@@ -187,12 +187,6 @@ lint_actionlint() {
         /tmp/actionlint
 }
 
-lint_advisories_report_only() {
-    # Report-only, as in pr.yml (continue-on-error): never fails the step.
-    cargo deny check --hide-inclusion-graph advisories || echo "(advisories are report-only at this commit)"
-    return 0
-}
-
 lint_ruff_mypy() {
     poetry run ruff check . && poetry run ruff format --check . && poetry run mypy .
 }
@@ -204,8 +198,7 @@ step_lint() {
     check "cargo fmt" cargo fmt --all -- --check
     check "postgres headers" make -j"$(nproc)" postgres-headers
     check "cargo clippy" lint_clippy
-    check "cargo deny (bans, licenses, sources)" cargo deny check --hide-inclusion-graph bans licenses sources
-    check "cargo deny (advisories, report only)" lint_advisories_report_only
+    check "cargo deny (advisories, bans, licenses, sources)" cargo deny check --hide-inclusion-graph
     check "python deps" ./scripts/pysync
     check "ruff and mypy" lint_ruff_mypy
     echo
