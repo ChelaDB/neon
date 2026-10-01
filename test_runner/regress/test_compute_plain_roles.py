@@ -28,6 +28,7 @@ def test_compute_plain_roles(neon_simple_env: NeonEnv):
         endpoint.respec_deep(
             **{
                 "spec": {
+                    "skip_pg_catalog_updates": False,
                     "cluster": {
                         "roles": [
                             {
@@ -42,7 +43,7 @@ def test_compute_plain_roles(neon_simple_env: NeonEnv):
                                 "options": None,
                             },
                         ]
-                    }
+                    },
                 }
             }
         )
