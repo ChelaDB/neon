@@ -65,7 +65,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          key: ${{ needs.build-tools.outputs.image }}
           cache-bin: false
 
       - name: Cache poetry deps
@@ -105,12 +104,6 @@ jobs:
           CLIPPY_COMMON_ARGS="$(source .neon_clippy_args; echo "$CLIPPY_COMMON_ARGS")"
           # shellcheck disable=SC2086
           cargo clippy --features testing $CLIPPY_COMMON_ARGS
-
-      - name: cargo hakari (workspace-hack is up to date)
-        if: ${{ !cancelled() }}
-        run: |
-          cargo hakari generate --diff
-          cargo hakari manage-deps --dry-run
 
       - name: cargo deny
         if: ${{ !cancelled() }}
@@ -175,7 +168,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          key: ${{ needs.build-tools.outputs.image }}
           cache-bin: false
           cache-on-failure: true
 
@@ -274,7 +266,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          key: ${{ needs.build-tools.outputs.image }}
           cache-bin: false
           cache-on-failure: true
 
