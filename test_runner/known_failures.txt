@@ -1,0 +1,14 @@
+# Regression tests that fail on unchanged code on our CI runners
+# (GitHub-hosted ubuntu-24.04, 4 vCPU / 16 GB, no cloud credentials).
+#
+# Format: one entry per line,
+#   <pytest node id>  # <short, concrete reason>
+# for example
+#   test_runner/regress/test_x.py::test_y[release-pg17]  # needs real S3
+# Blank lines and lines starting with `#` are ignored. Every entry must have a
+# reason. `.github/scripts/known_failures.sh` turns the entries into pytest
+# `--deselect` arguments (a node id prefix deselects every matching test).
+#
+# This list may only shrink. The one exception is a PR that merges upstream
+# code (for example a Postgres minor); it may add an entry with the
+# justification in the PR description.
