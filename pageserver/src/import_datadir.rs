@@ -366,8 +366,9 @@ pub async fn import_basebackup_from_tar(
     let mut entries = Archive::new(reader).entries()?;
     while let Some(base_tar_entry) = entries.next().await {
         let mut entry = base_tar_entry?;
+        // astral-tokio-tar: the effective size includes PAX `size` overrides
+        let len = entry.effective_size() as usize;
         let header = entry.header();
-        let len = header.entry_size()? as usize;
         let file_path = header.path()?.into_owned();
 
         match header.entry_type() {
