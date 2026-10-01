@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import psycopg2
 import pytest
 from fixtures.log_helper import log
-from psycopg2.errors import UndefinedObject
+from psycopg2.errors import ObjectNotInPrerequisiteState, UndefinedObject
 from werkzeug.wrappers.response import Response
 
 if TYPE_CHECKING:
@@ -328,7 +328,8 @@ def test_ddl_forwarding_invalid_db(neon_simple_env: NeonEnv):
         endpoint, "failure", -1, "Database 'failure' doesn't have a valid connlimit"
     )
 
-    with pytest.raises(psycopg2.InternalError):
+    # The control plane is unreachable: object_not_in_prerequisite_state (SQLSTATE 55000)
+    with pytest.raises(ObjectNotInPrerequisiteState):
         with endpoint.cursor() as cur:
             cur.execute("DROP DATABASE failure")
             cur.execute("COMMIT")
