@@ -1,8 +1,12 @@
 name: pr
 
-# PR CI: lint, a release build of Postgres v17 and the Rust binaries, the Rust
+# PR CI, manual only (workflow_dispatch) until the fork is integrated: PRs are
+# checked locally with .github/scripts/ci-local.sh, which runs the same lint, build and Rust-test steps in
+# the same image (see FORK.md, "Checks").
+#
+# lint, a release build of Postgres v17 and the Rust binaries, the Rust
 # unit tests, and the sharded pytest regression suite. `ci-ok` is the one
-# required status check.
+# summary job (branch protection requires no status check at present).
 #
 # Every job except `ci-ok` runs inside the build-tools image
 # (ghcr.io/cheladb/neon-build-tools), as root at the container level so the
@@ -14,10 +18,7 @@ name: pr
 # inputs) with a small change.
 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: pr-${{ github.event.pull_request.number || github.sha }}

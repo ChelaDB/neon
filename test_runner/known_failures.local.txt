@@ -1,0 +1,11 @@
+# Regression tests that fail only in the local `.github/scripts/ci-local.sh`
+# run, on unchanged `main` (see FORK.md, "Checks"). They pass, or are not
+# applicable, on GitHub's runners.
+#
+# Format and rules are those of known_failures.txt: one entry per line,
+#   <pytest node id>  # <short, concrete reason, with the rerun-alone result>
+# Every entry needs a reason. `.github/scripts/known_failures.sh` reads both
+# files. This list may only shrink; the one exception is a PR that merges
+# upstream code (for example a Postgres minor), which may add an entry with
+# the justification in the PR description.
+
