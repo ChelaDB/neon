@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 import psycopg2
 import pytest
+from psycopg2.errors import ObjectNotInPrerequisiteState
 from werkzeug.wrappers.response import Response
 
 if TYPE_CHECKING:
@@ -34,10 +35,10 @@ def test_ddl_forwarding_errors_unreachable(
     start_pg(vanilla_pg, "localhost", port)
 
     with vanilla_pg.cursor() as cur:
-        with pytest.raises(psycopg2.OperationalError) as exc_info:
+        with pytest.raises(ObjectNotInPrerequisiteState) as exc_info:
             cur.execute("CREATE ROLE r")
     err = exc_info.value
-    assert err.pgcode == "08006"
+    assert err.pgcode == "55000"
     assert err.diag.message_primary == UNAVAILABLE
     assert "localhost" not in str(err)
     assert str(port) not in str(err)

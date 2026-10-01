@@ -316,7 +316,7 @@ SendDeltasToControlPlane()
 			/* Details (the URL included) go to the server log only */
 			elog(LOG, "Failed to perform curl request to %s: %s", ConsoleURL, CurlErrorBuf);
 			ereport(ERROR,
-					(errcode(ERRCODE_CONNECTION_FAILURE),
+					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 					 errmsg("role and database changes are unavailable right now; try again")));
 		}
 
