@@ -12,3 +12,7 @@
 # This list may only shrink. The one exception is a PR that merges upstream
 # code (for example a Postgres minor); it may add an entry with the
 # justification in the PR description.
+
+test_runner/regress/test_compatibility.py::test_historic_storage_formats[release-pg17-dataset1]  # downloads its dataset from Neon's neon-github-public-dev S3 bucket, now HTTP 403 (failed 3/3)
+test_runner/regress/test_compatibility.py::test_historic_storage_formats[release-pg17-dataset2]  # downloads its dataset from Neon's neon-github-public-dev S3 bucket, now HTTP 403 (failed 3/3)
+test_runner/regress/test_pageserver_getpage_throttle.py::test_pageserver_getpage_throttle[release-pg17]  # hard-codes PgVersion.V16 for timeline_create; the PR build has only v17's initdb (failed 3/3)

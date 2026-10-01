@@ -105,9 +105,17 @@ jobs:
           # shellcheck disable=SC2086
           cargo clippy --features testing $CLIPPY_COMMON_ARGS
 
-      - name: cargo deny
+      - name: cargo deny (bans, licenses, sources)
         if: ${{ !cancelled() }}
-        run: cargo deny check --hide-inclusion-graph
+        run: cargo deny check --hide-inclusion-graph bans licenses sources
+
+      # Advisories are reported, not enforced: the RustSec database grows
+      # independently of a PR, and the upstream lock file already has a backlog
+      # of advisories (handled in their own dependency-update PRs).
+      - name: cargo deny (advisories, report only)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: cargo deny check --hide-inclusion-graph advisories
 
       - name: Python deps
         if: ${{ !cancelled() }}
@@ -380,6 +388,7 @@ jobs:
         with:
           name: test-durations-${{ matrix.group }}
           path: .test_durations
+          include-hidden-files: true
           retention-days: 14
           if-no-files-found: warn
 
