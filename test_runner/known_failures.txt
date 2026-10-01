@@ -16,3 +16,4 @@
 test_runner/regress/test_compatibility.py::test_historic_storage_formats[release-pg17-dataset1]  # downloads its dataset from Neon's neon-github-public-dev S3 bucket, now HTTP 403 (failed 3/3)
 test_runner/regress/test_compatibility.py::test_historic_storage_formats[release-pg17-dataset2]  # downloads its dataset from Neon's neon-github-public-dev S3 bucket, now HTTP 403 (failed 3/3)
 test_runner/regress/test_pageserver_getpage_throttle.py::test_pageserver_getpage_throttle[release-pg17]  # hard-codes PgVersion.V16 for timeline_create; the PR build has only v17's initdb (failed 3/3)
+test_runner/regress/test_pg_regress.py::test_tx_abort_with_many_relations[release-pg17-v1]  # statement timeout on 4 vCPU (5000 relations): failed 3/3 in run 36831912358 attempt 2, needed a rerun in run 36827491534
