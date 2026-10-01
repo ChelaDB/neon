@@ -64,16 +64,20 @@ jobs:
           persist-credentials: false
 
       # JSON diagnostics go to stderr; the error ones carry the advisory ID.
+      # The step runs as `nonroot`, which cannot write $RUNNER_TEMP (owned by
+      # the runner user), so the output goes to a mktemp file under /tmp.
       - name: cargo deny check advisories
         id: deny
         run: |
+          out="$(mktemp /tmp/deny.XXXXXX.json)"
           set +e
-          cargo deny --format json check advisories 2>"$RUNNER_TEMP/deny.json"
+          cargo deny --format json check advisories 2>"$out"
           status=$?
           set -e
-          cat "$RUNNER_TEMP/deny.json"
+          echo "cargo deny exit status ${status}; output ${out} ($(stat -c %s "$out") bytes)"
+          cat "$out"
           ids="$(jq -r 'select(.type == "diagnostic" and .fields.severity == "error") | .fields.advisory.id // empty' \
-            "$RUNNER_TEMP/deny.json" | sort -u | paste -sd' ' -)"
+            "$out" | sort -u | paste -sd' ' -)"
           echo "status=${status}" >>"$GITHUB_OUTPUT"
           echo "ids=${ids}" >>"$GITHUB_OUTPUT"
           exit "$status"
