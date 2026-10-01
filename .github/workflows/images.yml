@@ -1,0 +1,334 @@
+name: images
+
+# Publishes the Neon images to ghcr.io/cheladb (private packages), amd64 only.
+#
+#   dev       push to main and v* tags: the Postgres 17 variants
+#               neon:<sha12>-dev               storage image, PG_VERSIONS=v17
+#               compute-node-v17:<sha12>-dev   PG_VERSION=v17, EXTENSIONS=minimal
+#   platform  v* tags and workflow_dispatch only (no schedule): every major, all extensions
+#               neon:<sha12>                   storage image, PG_VERSIONS="v14 v15 v16 v17"
+#               compute-node-v1{4,5,6,7}:<sha12>   EXTENSIONS=all
+#
+# <sha12> is the first 12 hex digits of the built commit, the same value as `neon_tag` in
+# cheladb's infra/neon/lib/tags.sh. A v* tag also publishes <tag> (platform) and <tag>-dev (dev).
+# Each image carries SBOM and provenance attestations and the org.opencontainers.image.source label.
+# The dev storage image is checked by image_variant_test.sh before it is pushed.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  # One group per commit: with a per-ref group GitHub drops the middle pending run when several
+  # pushes land on main, and that commit's <sha12>-dev would never exist.
+  group: images-${{ github.sha }}
+  cancel-in-progress: false
+
+# Explicit (ruling 6): packages for the push, id-token and attestations for the attestations.
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+env:
+  REGISTRY_NS: ghcr.io/cheladb
+
+jobs:
+  # Builds ghcr.io/cheladb/neon-build-tools:<tag> if it is missing; the storage build uses it
+  # as its build image.
+  build-tools:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-tools.yml
+
+  meta:
+    needs: [build-tools]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      sha12: ${{ steps.m.outputs.sha12 }}
+      ref_tag: ${{ steps.m.outputs.ref_tag }}
+      build_tools_tag: ${{ steps.m.outputs.build_tools_tag }}
+    steps:
+      - id: m
+        env:
+          SHA: ${{ github.sha }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          BUILD_TOOLS_IMAGE: ${{ needs.build-tools.outputs.image }}
+        run: |
+          {
+            echo "sha12=${SHA:0:12}"
+            if [ "$REF_TYPE" = tag ]; then echo "ref_tag=${REF_NAME}"; else echo "ref_tag="; fi
+            echo "build_tools_tag=${BUILD_TOOLS_IMAGE##*:}"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  dev:
+    if: github.event_name == 'push'
+    needs: [meta]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      SHA12: ${{ needs.meta.outputs.sha12 }}
+      REF_TAG: ${{ needs.meta.outputs.ref_tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The storage build needs the headers of every Postgres major (postgres_ffi), so all four.
+          submodules: true
+          persist-credentials: false
+
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Tags
+        id: tags
+        run: |
+          {
+            echo "storage<<EOF"
+            echo "${REGISTRY_NS}/neon:${SHA12}-dev"
+            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/neon:${REF_TAG}-dev"
+            echo "EOF"
+            echo "compute<<EOF"
+            echo "${REGISTRY_NS}/compute-node-v17:${SHA12}-dev"
+            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/compute-node-v17:${REF_TAG}-dev"
+            echo "EOF"
+          } | tee -a "$GITHUB_OUTPUT"
+
+      # Build into the local daemon first and test it, so a broken variant is never pushed. The
+      # push build below reuses this builder's cache, so it only adds the export and attestations.
+      - name: Build the storage image (local, for the test)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          build-args: |
+            PG_VERSIONS=v17
+            REPOSITORY=ghcr.io/cheladb
+            IMAGE=neon-build-tools
+            TAG=${{ needs.meta.outputs.build_tools_tag }}
+            GIT_VERSION=${{ github.sha }}
+            BUILD_TAG=${{ needs.meta.outputs.sha12 }}
+          platforms: linux/amd64
+          load: true
+          provenance: false
+          sbom: false
+          tags: neon-dev-test:local
+          cache-from: type=registry,ref=ghcr.io/cheladb/neon:buildcache-dev
+
+      - name: Test the storage image variant
+        run: .github/scripts/image_variant_test.sh neon-dev-test:local
+
+      - name: Push the storage image
+        id: push-storage
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          build-args: |
+            PG_VERSIONS=v17
+            REPOSITORY=ghcr.io/cheladb
+            IMAGE=neon-build-tools
+            TAG=${{ needs.meta.outputs.build_tools_tag }}
+            GIT_VERSION=${{ github.sha }}
+            BUILD_TAG=${{ needs.meta.outputs.sha12 }}
+          platforms: linux/amd64
+          push: true
+          provenance: true
+          sbom: true
+          tags: ${{ steps.tags.outputs.storage }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/ChelaDB/neon
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/cheladb/neon:buildcache-dev
+          cache-to: type=registry,ref=ghcr.io/cheladb/neon:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
+
+      - name: Push the compute image
+        id: push-compute
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: compute/compute-node.Dockerfile
+          build-args: |
+            PG_VERSION=v17
+            EXTENSIONS=minimal
+            DEBIAN_VERSION=bookworm
+            BUILD_TAG=${{ needs.meta.outputs.sha12 }}
+          platforms: linux/amd64
+          push: true
+          provenance: true
+          sbom: true
+          tags: ${{ steps.tags.outputs.compute }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/ChelaDB/neon
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/cheladb/compute-node-v17:buildcache-dev
+          cache-to: type=registry,ref=ghcr.io/cheladb/compute-node-v17:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
+
+      - name: Digests
+        env:
+          STORAGE_DIGEST: ${{ steps.push-storage.outputs.digest }}
+          COMPUTE_DIGEST: ${{ steps.push-compute.outputs.digest }}
+        run: |
+          {
+            echo "### Dev images (${SHA12})"
+            echo "- neon:${SHA12}-dev \`${STORAGE_DIGEST}\`"
+            echo "- compute-node-v17:${SHA12}-dev \`${COMPUTE_DIGEST}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  platform-storage:
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    needs: [meta]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      SHA12: ${{ needs.meta.outputs.sha12 }}
+      REF_TAG: ${{ needs.meta.outputs.ref_tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Tags
+        id: tags
+        run: |
+          {
+            echo "storage<<EOF"
+            echo "${REGISTRY_NS}/neon:${SHA12}"
+            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/neon:${REF_TAG}"
+            echo "EOF"
+          } | tee -a "$GITHUB_OUTPUT"
+
+      - name: Push the storage image
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          build-args: |
+            PG_VERSIONS=v14 v15 v16 v17
+            REPOSITORY=ghcr.io/cheladb
+            IMAGE=neon-build-tools
+            TAG=${{ needs.meta.outputs.build_tools_tag }}
+            GIT_VERSION=${{ github.sha }}
+            BUILD_TAG=${{ needs.meta.outputs.sha12 }}
+          platforms: linux/amd64
+          push: true
+          provenance: true
+          sbom: true
+          tags: ${{ steps.tags.outputs.storage }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/ChelaDB/neon
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/cheladb/neon:buildcache-platform
+          cache-to: type=registry,ref=ghcr.io/cheladb/neon:buildcache-platform,mode=max,image-manifest=true,oci-mediatypes=true
+
+      - name: Digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: echo "- neon:${SHA12} \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  platform-compute:
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    needs: [meta]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [v14, v15, v16, v17]
+    env:
+      SHA12: ${{ needs.meta.outputs.sha12 }}
+      REF_TAG: ${{ needs.meta.outputs.ref_tag }}
+      IMAGE_NAME: compute-node-${{ matrix.pg }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Tags
+        id: tags
+        run: |
+          {
+            echo "compute<<EOF"
+            echo "${REGISTRY_NS}/${IMAGE_NAME}:${SHA12}"
+            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/${IMAGE_NAME}:${REF_TAG}"
+            echo "EOF"
+          } | tee -a "$GITHUB_OUTPUT"
+
+      # Upstream built v14-v16 on bullseye; we use bookworm for every major on purpose. Bullseye is
+      # EOL, and physically imported bullseye-era v14-v16 data would need a REINDEX of its
+      # collation-dependent indexes.
+      - name: Push the compute image
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: compute/compute-node.Dockerfile
+          build-args: |
+            PG_VERSION=${{ matrix.pg }}
+            EXTENSIONS=all
+            DEBIAN_VERSION=bookworm
+            BUILD_TAG=${{ needs.meta.outputs.sha12 }}
+          platforms: linux/amd64
+          push: true
+          provenance: true
+          sbom: true
+          tags: ${{ steps.tags.outputs.compute }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/ChelaDB/neon
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/cheladb/${{ env.IMAGE_NAME }}:buildcache-platform
+          cache-to: type=registry,ref=ghcr.io/cheladb/${{ env.IMAGE_NAME }}:buildcache-platform,mode=max,image-manifest=true,oci-mediatypes=true
+
+      - name: Digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: echo "- ${IMAGE_NAME}:${SHA12} \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"

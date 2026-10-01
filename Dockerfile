@@ -2,9 +2,16 @@
 ### The image itself is mainly used as a container for the binaries and for starting e2e tests with custom parameters.
 ### By default, the binaries inside the image have some mock parameters and can start, but are not intended to be used
 ### inside this image in the real deployments.
-ARG REPOSITORY=ghcr.io/neondatabase
-ARG IMAGE=build-tools
-ARG TAG=pinned
+# Postgres majors to build and ship, space-separated. The dev image uses PG_VERSIONS=v17.
+# (postgres_ffi's build script needs the headers of every major to compile, so the build stage
+# also installs headers for the unlisted ones, but only the listed majors reach the final image.)
+ARG PG_VERSIONS="v14 v15 v16 v17"
+# The build-tools image. images.yml passes the tag it computes (first 12 hex of the sha256 of
+# build-tools/Dockerfile, as build-tools.yml does); this default is a fallback and goes stale
+# whenever build-tools/Dockerfile changes.
+ARG REPOSITORY=ghcr.io/cheladb
+ARG IMAGE=neon-build-tools
+ARG TAG=a93539980382
 ARG DEBIAN_VERSION=bookworm
 ARG DEBIAN_FLAVOR=${DEBIAN_VERSION}-slim
 
@@ -44,18 +51,21 @@ ARG BASE_IMAGE_SHA=${BASE_IMAGE_SHA/debian:bullseye-slim/debian@$BULLSEYE_SLIM_S
 # 1. Build all postgres versions
 FROM $REPOSITORY/$IMAGE:$TAG AS pg-build
 WORKDIR /home/nonroot
+ARG PG_VERSIONS
 
-COPY --chown=nonroot vendor/postgres-v14 vendor/postgres-v14
-COPY --chown=nonroot vendor/postgres-v15 vendor/postgres-v15
-COPY --chown=nonroot vendor/postgres-v16 vendor/postgres-v16
-COPY --chown=nonroot vendor/postgres-v17 vendor/postgres-v17
+COPY --chown=nonroot vendor/ vendor/
+# Keep only the listed majors, so unlisted ones are neither built nor part of this layer's cache key.
+RUN set -e \
+    && for v in v14 v15 v16 v17; do \
+        case " $PG_VERSIONS " in *" $v "*) ;; *) rm -rf "vendor/postgres-$v" ;; esac; \
+    done
 COPY --chown=nonroot Makefile Makefile
 COPY --chown=nonroot postgres.mk postgres.mk
 COPY --chown=nonroot scripts/ninstall.sh scripts/ninstall.sh
 
 ENV BUILD_TYPE=release
 RUN set -e \
-    && mold -run make -j $(nproc) -s postgres
+    && mold -run make -j $(nproc) -s POSTGRES_VERSIONS="$PG_VERSIONS" postgres
 
 # 2. Prepare cargo-chef recipe
 FROM $REPOSITORY/$IMAGE:$TAG AS plan
@@ -75,6 +85,7 @@ RUN --mount=type=secret,uid=1000,id=SUBZERO_ACCESS_TOKEN \
 # Main build image
 FROM $REPOSITORY/$IMAGE:$TAG AS build
 WORKDIR /home/nonroot
+ARG PG_VERSIONS
 ARG GIT_VERSION=local
 ARG BUILD_TAG
 ARG ADDITIONAL_RUSTFLAGS=""
@@ -99,6 +110,12 @@ COPY --chown=nonroot . .
 COPY --chown=nonroot --from=plan     /home/nonroot/proxy/Cargo.toml         proxy/Cargo.toml
 COPY --chown=nonroot --from=plan     /home/nonroot/Cargo.lock               Cargo.lock
 
+# postgres_ffi generates bindings for every major, so it needs the headers of the unlisted ones too.
+RUN set -e \
+    && for v in v14 v15 v16 v17; do \
+        case " $PG_VERSIONS " in *" $v "*) ;; *) make -s "postgres-headers-install-$v" ;; esac; \
+    done
+
 RUN  --mount=type=secret,uid=1000,id=SUBZERO_ACCESS_TOKEN \
     set -e \
     && if [ -s /run/secrets/SUBZERO_ACCESS_TOKEN ]; then \
@@ -122,11 +139,15 @@ RUN  --mount=type=secret,uid=1000,id=SUBZERO_ACCESS_TOKEN \
       --bin neon_local \
       --bin storage_scrubber \
       --locked --release \
-    && mold -run make -j $(nproc) -s neon-pg-ext
+    && mold -run make -j $(nproc) -s POSTGRES_VERSIONS="$PG_VERSIONS" neon-pg-ext \
+    && for v in v14 v15 v16 v17; do \
+        case " $PG_VERSIONS " in *" $v "*) ;; *) rm -rf "pg_install/$v" ;; esac; \
+    done
 
 # Assemble the final image
 FROM $BASE_IMAGE_SHA
 WORKDIR /data
+ARG PG_VERSIONS
 
 RUN set -e \
     && echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
@@ -164,15 +185,14 @@ COPY --from=build --chown=neon:neon /home/nonroot/target/release/proxy          
 COPY --from=build --chown=neon:neon /home/nonroot/target/release/endpoint_storage    /usr/local/bin
 COPY --from=build --chown=neon:neon /home/nonroot/target/release/neon_local          /usr/local/bin
 COPY --from=build --chown=neon:neon /home/nonroot/target/release/storage_scrubber    /usr/local/bin
-COPY --from=build /home/nonroot/pg_install/v14 /usr/local/v14/
-COPY --from=build /home/nonroot/pg_install/v15 /usr/local/v15/
-COPY --from=build /home/nonroot/pg_install/v16 /usr/local/v16/
-COPY --from=build /home/nonroot/pg_install/v17 /usr/local/v17/
+# pg_install/ holds one vN directory per listed major (the build stage removed the others).
+COPY --from=build /home/nonroot/pg_install/ /usr/local/
 
-# Deprecated: Old deployment scripts use this tarball which contains all the Postgres binaries.
+# Deprecated: Old deployment scripts use this tarball which contains all the Postgres binaries
+# of the listed majors.
 # That's obsolete, since all the same files are also present under /usr/local/v*. But to keep the
 # old scripts working for now, create the tarball.
-RUN tar -C /usr/local -cvzf /data/postgres_install.tar.gz v14 v15 v16 v17
+RUN tar -C /usr/local -cvzf /data/postgres_install.tar.gz $PG_VERSIONS
 
 # By default, pageserver uses `.neon/` working directory in WORKDIR, so create one and fill it with the dummy config.
 # Now, when `docker run ... pageserver` is run, it can start without errors, yet will have some default dummy values.
