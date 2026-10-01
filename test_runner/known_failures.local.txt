@@ -9,4 +9,3 @@
 # upstream code (for example a Postgres minor), which may add an entry with
 # the justification in the PR description.
 
-test_runner/regress/test_compute_plain_roles.py::test_compute_plain_roles[release-pg17]  # fails alone 0/3 (deterministic): compute_ctl's /configure reconfigure only updates safekeepers, so the roles in the respec are never created (the test, from Task 11b, was written but never run); fails on GitHub too, needs a fix in a follow-up

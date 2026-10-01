@@ -38,3 +38,4 @@ docker-compose/docker-compose-parallel.yml
 /proxy/.subzero
 local_proxy.json
 .ci-local/
+.cache/
