@@ -908,6 +908,8 @@ force_noop(FmgrInfo *finfo)
 static void
 neon_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
 {
+	bool		skipped = false;
+
 	/*
 	 * It can be other needs_fmgr_hook which cause our hook to be invoked for
 	 * non-trigger function, so recheck that is is trigger function.
@@ -960,6 +962,7 @@ neon_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
 			 * change the event trigger function to a noop function.
 			 */
 			force_noop(flinfo);
+			skipped = true;
 		}
 	}
 
@@ -968,22 +971,39 @@ neon_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
 	 * superuser. Allow executing Event Trigger function that belongs to a
 	 * superuser when connected as a non-superuser, even when the function is
 	 * SECURITY DEFINER.
+	 *
+	 * This check doesn't depend on neon.event_triggers: a function the check
+	 * above didn't skip still goes through it.
 	 */
-    else if (event == FHET_START
+	if (event == FHET_START
+		&& !skipped
 		/* still enable it to pass pg_regress tests */
 		&& !RegressTestMode)
 	{
 		/*
-		 * Get the current user oid as of before SECURITY DEFINER change of
-		 * CurrentUserId, and that would be SessionUserId.
+		 * Check both the session user and the current user: the current user
+		 * can differ from the session user (SET ROLE, SECURITY DEFINER
+		 * functions, or an extension script that runs as the bootstrap
+		 * superuser), and the function would run as the current user.
+		 *
+		 * For a SECURITY DEFINER function, fmgr has already switched the
+		 * current user to the function owner when this hook runs, so the
+		 * current user is the owner here, which is the role the function
+		 * runs as.
 		 */
-		Oid current_role_oid = GetSessionUserId();
-		bool role_is_super = superuser_arg(current_role_oid);
+		Oid session_role_oid = GetSessionUserId();
+		Oid current_role_oid = GetUserId();
+		Oid super_role_oid = InvalidOid;
 
 		/* Find the Function Attributes (owner Oid, security definer) */
 		Oid function_owner = InvalidOid;
 		bool function_is_secdef = false;
 		bool function_is_owned_by_super = false;
+
+		if (superuser_arg(current_role_oid))
+			super_role_oid = current_role_oid;
+		else if (superuser_arg(session_role_oid))
+			super_role_oid = session_role_oid;
 
 		LookupFuncOwnerSecDef(flinfo->fn_oid, &function_owner, &function_is_secdef);
 
@@ -991,14 +1011,14 @@ neon_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
 
 		/*
 		 * Refuse to run functions that belongs to a non-superuser when the
-		 * current user is a superuser.
+		 * session user or the current user is a superuser.
 		 *
 		 * We could run a SECURITY DEFINER user-function here and be safe with
 		 * privilege escalation risks, but superuser roles are only used for
 		 * infrastructure maintenance operations, where we prefer to skip
 		 * running user-defined code.
 		 */
-		if (role_is_super && !function_is_owned_by_super)
+		if (OidIsValid(super_role_oid) && !function_is_owned_by_super)
 		{
 			char *func_name = get_func_name(flinfo->fn_oid);
 
@@ -1006,10 +1026,12 @@ neon_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
 					(errmsg("Skipping Event Trigger"),
 					 errdetail("Event Trigger function \"%s\" "
 							   "is owned by non-superuser role \"%s\", "
-							   "and current_user \"%s\" is superuser",
+							   "and %s \"%s\" is superuser",
 							   func_name,
 							   GetUserNameFromId(function_owner, false),
-							   GetUserNameFromId(current_role_oid, false))));
+							   super_role_oid == current_role_oid
+							   ? "current_user" : "session_user",
+							   GetUserNameFromId(super_role_oid, false))));
 
 			/*
 			 * we can't skip execution directly inside the fmgr_hook so
@@ -1018,7 +1040,6 @@ neon_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
 			 */
 			force_noop(flinfo);
 		}
-
 	}
 
 	if (next_fmgr_hook)
