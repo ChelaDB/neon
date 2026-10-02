@@ -50,6 +50,9 @@ check "several entries keep their order" \
 check "no trailing newline" "a::b  # x" "--deselect a::b"
 check_fails "an entry without a reason is rejected" $'a::b\n'
 check_fails "an entry with an empty reason is rejected" $'a::b  #   \n'
+# A pytest node id always has `::`; a bare path would silently deselect a whole file.
+check_fails "an entry without :: is rejected" $'test_runner/regress/test_a.py  # whole file\n'
+check_fails "a typo without :: is rejected" $'test_one  # not a node id\n'
 
 # Path from the environment instead of an argument.
 printf 'env::case  # x\n' >"$tmp/env.txt"

@@ -54,7 +54,8 @@ WORKDIR /home/nonroot
 ARG PG_VERSIONS
 
 COPY --chown=nonroot vendor/ vendor/
-# Keep only the listed majors, so unlisted ones are neither built nor part of this layer's cache key.
+# Keep only the listed majors, so unlisted ones are not built. The COPY above still includes all four
+# majors, so a change to an unlisted one invalidates this layer's cache (it is cheap to rebuild).
 RUN set -e \
     && for v in v14 v15 v16 v17; do \
         case " $PG_VERSIONS " in *" $v "*) ;; *) rm -rf "vendor/postgres-$v" ;; esac; \

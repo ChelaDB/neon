@@ -54,7 +54,7 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-      options: --user root --init --shm-size=512mb --ulimit memlock=67108864:67108864 --security-opt seccomp=unconfined
+      options: --user root --init --shm-size=512mb --ulimit memlock=67108864:67108864
     defaults:
       run:
         shell: bash .github/scripts/as-nonroot.sh {0}
@@ -189,7 +189,11 @@ jobs:
             # postgres_ffi generates bindings for every major, so it needs all headers.
             make -j"$(nproc)" postgres-headers-install-v14 postgres-headers-install-v15 postgres-headers-install-v16
           fi
-          mold -run make -j"$(nproc)" POSTGRES_VERSIONS="$PG_VERSION" BUILD_TYPE="$BUILD_TYPE" \
+          # walproposer-lib (part of `all`) always uses v17, so v17 stays in the list
+          # if PG_VERSION is ever changed to v14-v16 (as ci-local.sh's build_versions).
+          versions="$PG_VERSION"
+          [[ "$PG_VERSION" == v17 ]] || versions="$PG_VERSION v17"
+          mold -run make -j"$(nproc)" POSTGRES_VERSIONS="$versions" BUILD_TYPE="$BUILD_TYPE" \
             CARGO_BUILD_FLAGS="$CARGO_FLAGS" all
           echo "build took $(( $(date +%s) - start ))s"
 
@@ -367,7 +371,9 @@ jobs:
         run: |
           export DEFAULT_PG_VERSION="${PG_VERSION#v}"
           export LD_LIBRARY_PATH="$POSTGRES_DISTRIB_DIR/$PG_VERSION/lib"
-          mapfile -t deselect < <(.github/scripts/known_failures.sh)
+          # Into a file first: `mapfile < <(...)` would ignore the script's exit status.
+          .github/scripts/known_failures.sh >/tmp/known_failures.args
+          mapfile -t deselect </tmp/known_failures.args
           start=$(date +%s)
           ./scripts/pytest test_runner/regress \
             -n 3 --dist=loadgroup \
