@@ -20,11 +20,6 @@
 //! - `http-endpoint` runs a Hyper HTTP API server, which serves readiness and the
 //!   last activity requests.
 //!
-//! If `AUTOSCALING` environment variable is set, `compute_ctl` will start the
-//! `vm-monitor` located in [`neon/libs/vm_monitor`]. For VM compute nodes,
-//! `vm-monitor` communicates with the VM autoscaling system. It coordinates
-//! downscaling and requests immediate upscaling under resource pressure.
-//!
 //! Usage example:
 //! ```sh
 //! compute_ctl -D /var/db/postgres/compute \
@@ -104,21 +99,6 @@ struct Cli {
         value_parser = Self::parse_privileged_role_name
     )]
     pub privileged_role_name: String,
-
-    #[cfg(target_os = "linux")]
-    #[arg(long, default_value = "neon-postgres")]
-    pub cgroup: String,
-
-    #[cfg(target_os = "linux")]
-    #[arg(
-        long,
-        default_value = "host=localhost port=5432 dbname=postgres user=cloud_admin sslmode=disable application_name=vm-monitor"
-    )]
-    pub filecache_connstr: String,
-
-    #[cfg(target_os = "linux")]
-    #[arg(long, default_value = "0.0.0.0:10301")]
-    pub vm_monitor_addr: String,
 
     #[arg(long, action = clap::ArgAction::SetTrue)]
     pub resize_swap_on_bind: bool,
@@ -259,12 +239,6 @@ fn main() -> Result<()> {
             remote_ext_base_url: cli.remote_ext_base_url.clone(),
             resize_swap_on_bind: cli.resize_swap_on_bind,
             set_disk_quota_for_fs: cli.set_disk_quota_for_fs,
-            #[cfg(target_os = "linux")]
-            filecache_connstr: cli.filecache_connstr,
-            #[cfg(target_os = "linux")]
-            cgroup: cli.cgroup,
-            #[cfg(target_os = "linux")]
-            vm_monitor_addr: cli.vm_monitor_addr,
             installed_extensions_collection_interval: Arc::new(AtomicU64::new(
                 cli.installed_extensions_collection_interval,
             )),

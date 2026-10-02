@@ -46,6 +46,12 @@ for bad in "--pg v18" "--pg" "--build-type fast" "-n 0" "-n x" "--bogus" "-k" "-
     fi
 done
 
+# The build step's POSTGRES_VERSIONS: walproposer-lib (part of `make all`)
+# always links against v17, so a v14-v16 build must keep v17 in the list.
+expect "build versions for v17" "v17" "$(build_versions v17)"
+expect "build versions for v16 keep v17" "v16 v17" "$(build_versions v16)"
+expect "build versions for v14 keep v17" "v14 v17" "$(build_versions v14)"
+
 # The image tag is the first 12 hex characters of sha256sum build-tools/Dockerfile,
 # exactly as pr.yml and build-tools.yml compute it.
 root="$(cd "$here/../.." && pwd)"
