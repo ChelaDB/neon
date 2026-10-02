@@ -652,11 +652,9 @@ impl ComputeNode {
 
         // If we got a spec from the CLI already, use that. Otherwise wait for the
         // control plane to pass it to us with a /configure HTTP request
-        let pspec = if let Some(cli_spec) = cli_spec {
-            cli_spec
-        } else {
-            this.wait_spec()?
-        };
+        if cli_spec.is_none() {
+            this.wait_spec()?;
+        }
 
         launch_lsn_lease_bg_task_for_static(&this);
 
