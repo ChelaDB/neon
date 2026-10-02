@@ -269,6 +269,9 @@ pub struct ConfigToml {
     pub dev_mode: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub posthog_config: Option<PostHogConfig>,
+    /// Evaluate feature flags from the spec pushed via `POST /v1/feature_flag_spec` only,
+    /// without a PostHog integration. Ignored when `posthog_config` is set.
+    pub feature_flags_push_only: bool,
     pub timeline_import_config: TimelineImportConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub basebackup_cache_config: Option<BasebackupCacheConfig>,
@@ -836,6 +839,7 @@ impl Default for ConfigToml {
             },
             basebackup_cache_config: None,
             posthog_config: None,
+            feature_flags_push_only: false,
             image_layer_generation_large_timeline_threshold: Some(2 * 1024 * 1024 * 1024),
             force_metric_collection_on_scrape: true,
         }
