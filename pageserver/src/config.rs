@@ -249,6 +249,9 @@ pub struct PageServerConf {
     /// PostHog integration config.
     pub posthog_config: Option<PostHogConfig>,
 
+    /// Take feature flags from `POST /v1/feature_flag_spec` only (no PostHog).
+    pub feature_flags_push_only: bool,
+
     pub timeline_import_config: pageserver_api::config::TimelineImportConfig,
 
     pub basebackup_cache_config: Option<pageserver_api::config::BasebackupCacheConfig>,
@@ -438,6 +441,7 @@ impl PageServerConf {
             enable_tls_page_service_api,
             dev_mode,
             posthog_config,
+            feature_flags_push_only,
             timeline_import_config,
             basebackup_cache_config,
             image_layer_generation_large_timeline_threshold,
@@ -559,6 +563,7 @@ impl PageServerConf {
                 None => Vec::new(),
             },
             posthog_config,
+            feature_flags_push_only,
         };
 
         // ------------------------------------------------------------
@@ -791,6 +796,18 @@ mod tests {
         let workdir = Utf8PathBuf::from("/nonexistent");
         let result = PageServerConf::parse_and_validate(NodeId(0), config_toml, &workdir);
         assert_eq!(result.is_ok(), is_valid);
+    }
+
+    #[test]
+    fn config_push_only_defaults_false() {
+        let default = toml_edit::de::from_str::<pageserver_api::config::ConfigToml>("")
+            .expect("empty config is valid");
+        assert!(!default.feature_flags_push_only);
+        let on = toml_edit::de::from_str::<pageserver_api::config::ConfigToml>(
+            "feature_flags_push_only = true",
+        )
+        .expect("push-only config is valid");
+        assert!(on.feature_flags_push_only);
     }
 
     #[test]

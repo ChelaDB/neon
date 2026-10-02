@@ -7,8 +7,8 @@ use std::{
 use arc_swap::ArcSwap;
 use pageserver_api::config::NodeMetadata;
 use posthog_client_lite::{
-    CaptureEvent, FeatureResolverBackgroundLoop, PostHogEvaluationError,
-    PostHogFlagFilterPropertyValue,
+    CaptureEvent, FeatureResolverBackgroundLoop, FeatureStore, LocalEvaluationResponse,
+    PostHogEvaluationError, PostHogFlagFilterPropertyValue,
 };
 use rand::Rng;
 use remote_storage::RemoteStorageKind;
@@ -23,6 +23,10 @@ const DEFAULT_POSTHOG_REFRESH_INTERVAL: Duration = Duration::from_secs(600);
 #[derive(Clone)]
 pub struct FeatureResolver {
     inner: Option<Arc<FeatureResolverBackgroundLoop>>,
+    /// Push-only mode (no PostHog config): the spec pushed via `POST /v1/feature_flag_spec`
+    /// is the only source of flags. There is no background loop and no event capture.
+    /// Mutually exclusive with `inner`.
+    push_only_store: Option<Arc<ArcSwap<FeatureStore>>>,
     internal_properties: Option<Arc<HashMap<String, PostHogFlagFilterPropertyValue>>>,
     force_overrides_for_testing: Arc<ArcSwap<HashMap<String, String>>>,
 }
@@ -31,7 +35,21 @@ impl FeatureResolver {
     pub fn new_disabled() -> Self {
         Self {
             inner: None,
+            push_only_store: None,
             internal_properties: None,
+            force_overrides_for_testing: Arc::new(ArcSwap::new(Arc::new(HashMap::new()))),
+        }
+    }
+
+    /// A resolver whose only flag source is `update()`. Until a spec is pushed, every
+    /// evaluation is `NotAvailable`.
+    pub fn new_push_only(
+        internal_properties: HashMap<String, PostHogFlagFilterPropertyValue>,
+    ) -> Self {
+        Self {
+            inner: None,
+            push_only_store: Some(Arc::new(ArcSwap::new(Arc::new(FeatureStore::new())))),
+            internal_properties: Some(Arc::new(internal_properties)),
             force_overrides_for_testing: Arc::new(ArcSwap::new(Arc::new(HashMap::new()))),
         }
     }
@@ -39,8 +57,29 @@ impl FeatureResolver {
     pub fn update(&self, spec: String) -> anyhow::Result<()> {
         if let Some(inner) = &self.inner {
             inner.update(spec)?;
+        } else if let Some(store) = &self.push_only_store {
+            let resp: LocalEvaluationResponse = serde_json::from_str(&spec)?;
+            // No PostHog project id to check the flags against in push-only mode.
+            match FeatureStore::new_with_flags(resp.flags, None) {
+                Ok(feature_store) => {
+                    store.store(Arc::new(feature_store));
+                    tracing::info!("Feature flag updated from http_propagate");
+                }
+                Err(e) => {
+                    tracing::warn!("Cannot process feature flag spec from http_propagate: {e}");
+                }
+            }
         }
         Ok(())
+    }
+
+    /// The store flags are evaluated against: PostHog's or the push-only one.
+    fn feature_store(&self) -> Option<Arc<FeatureStore>> {
+        if let Some(inner) = &self.inner {
+            Some(inner.feature_store())
+        } else {
+            self.push_only_store.as_ref().map(|store| store.load_full())
+        }
     }
 
     pub fn spawn(
@@ -59,6 +98,7 @@ impl FeatureResolver {
                     );
                     return Ok(FeatureResolver {
                         inner: None,
+                        push_only_store: None,
                         internal_properties: None,
                         force_overrides_for_testing: Arc::new(ArcSwap::new(Arc::new(
                             HashMap::new(),
@@ -70,85 +110,7 @@ impl FeatureResolver {
                 FeatureResolverBackgroundLoop::new(posthog_client_config, shutdown_pageserver);
             let inner = Arc::new(inner);
 
-            // The properties shared by all tenants on this pageserver.
-            let internal_properties = {
-                let mut properties = HashMap::new();
-                properties.insert(
-                    "pageserver_id".to_string(),
-                    PostHogFlagFilterPropertyValue::String(conf.id.to_string()),
-                );
-                if let Some(availability_zone) = &conf.availability_zone {
-                    properties.insert(
-                        "availability_zone".to_string(),
-                        PostHogFlagFilterPropertyValue::String(availability_zone.clone()),
-                    );
-                }
-                // Infer region based on the remote storage config.
-                if let Some(remote_storage) = &conf.remote_storage_config {
-                    match &remote_storage.storage {
-                        RemoteStorageKind::AwsS3(config) => {
-                            properties.insert(
-                                "region".to_string(),
-                                PostHogFlagFilterPropertyValue::String(format!(
-                                    "aws-{}",
-                                    config.bucket_region
-                                )),
-                            );
-                        }
-                        RemoteStorageKind::AzureContainer(config) => {
-                            properties.insert(
-                                "region".to_string(),
-                                PostHogFlagFilterPropertyValue::String(format!(
-                                    "azure-{}",
-                                    config.container_region
-                                )),
-                            );
-                        }
-                        RemoteStorageKind::LocalFs { .. } => {
-                            properties.insert(
-                                "region".to_string(),
-                                PostHogFlagFilterPropertyValue::String("local".to_string()),
-                            );
-                        }
-                        RemoteStorageKind::GCS { .. } => {
-                            properties.insert(
-                                "region".to_string(),
-                                PostHogFlagFilterPropertyValue::String("local".to_string()),
-                            );
-                        }
-                    }
-                }
-                // TODO: move this to a background task so that we don't block startup in case of slow disk
-                let metadata_path = conf.metadata_path();
-                match std::fs::read_to_string(&metadata_path) {
-                    Ok(metadata_str) => match serde_json::from_str::<NodeMetadata>(&metadata_str) {
-                        Ok(metadata) => {
-                            properties.insert(
-                                "hostname".to_string(),
-                                PostHogFlagFilterPropertyValue::String(metadata.http_host),
-                            );
-                            if let Some(cplane_region) = metadata.other.get("region_id") {
-                                if let Some(cplane_region) = cplane_region.as_str() {
-                                    // This region contains the cell number
-                                    properties.insert(
-                                        "neon_region".to_string(),
-                                        PostHogFlagFilterPropertyValue::String(
-                                            cplane_region.to_string(),
-                                        ),
-                                    );
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            tracing::warn!("Failed to parse metadata.json: {}", e);
-                        }
-                    },
-                    Err(e) => {
-                        tracing::warn!("Failed to read metadata.json: {}", e);
-                    }
-                }
-                Arc::new(properties)
-            };
+            let internal_properties = Self::build_internal_properties(conf);
 
             let fake_tenants = {
                 let mut tenants = Vec::new();
@@ -189,16 +151,98 @@ impl FeatureResolver {
             );
             Ok(FeatureResolver {
                 inner: Some(inner),
+                push_only_store: None,
                 internal_properties: Some(internal_properties),
                 force_overrides_for_testing: Arc::new(ArcSwap::new(Arc::new(HashMap::new()))),
             })
+        } else if conf.feature_flags_push_only {
+            let internal_properties = Self::build_internal_properties(conf);
+            Ok(Self::new_push_only(Arc::unwrap_or_clone(
+                internal_properties,
+            )))
         } else {
-            Ok(FeatureResolver {
-                inner: None,
-                internal_properties: None,
-                force_overrides_for_testing: Arc::new(ArcSwap::new(Arc::new(HashMap::new()))),
-            })
+            Ok(Self::new_disabled())
         }
+    }
+
+    /// The properties shared by all tenants on this pageserver.
+    fn build_internal_properties(
+        conf: &PageServerConf,
+    ) -> Arc<HashMap<String, PostHogFlagFilterPropertyValue>> {
+        let mut properties = HashMap::new();
+        properties.insert(
+            "pageserver_id".to_string(),
+            PostHogFlagFilterPropertyValue::String(conf.id.to_string()),
+        );
+        if let Some(availability_zone) = &conf.availability_zone {
+            properties.insert(
+                "availability_zone".to_string(),
+                PostHogFlagFilterPropertyValue::String(availability_zone.clone()),
+            );
+        }
+        // Infer region based on the remote storage config.
+        if let Some(remote_storage) = &conf.remote_storage_config {
+            match &remote_storage.storage {
+                RemoteStorageKind::AwsS3(config) => {
+                    properties.insert(
+                        "region".to_string(),
+                        PostHogFlagFilterPropertyValue::String(format!(
+                            "aws-{}",
+                            config.bucket_region
+                        )),
+                    );
+                }
+                RemoteStorageKind::AzureContainer(config) => {
+                    properties.insert(
+                        "region".to_string(),
+                        PostHogFlagFilterPropertyValue::String(format!(
+                            "azure-{}",
+                            config.container_region
+                        )),
+                    );
+                }
+                RemoteStorageKind::LocalFs { .. } => {
+                    properties.insert(
+                        "region".to_string(),
+                        PostHogFlagFilterPropertyValue::String("local".to_string()),
+                    );
+                }
+                RemoteStorageKind::GCS { .. } => {
+                    properties.insert(
+                        "region".to_string(),
+                        PostHogFlagFilterPropertyValue::String("local".to_string()),
+                    );
+                }
+            }
+        }
+        // TODO: move this to a background task so that we don't block startup in case of slow disk
+        let metadata_path = conf.metadata_path();
+        match std::fs::read_to_string(&metadata_path) {
+            Ok(metadata_str) => match serde_json::from_str::<NodeMetadata>(&metadata_str) {
+                Ok(metadata) => {
+                    properties.insert(
+                        "hostname".to_string(),
+                        PostHogFlagFilterPropertyValue::String(metadata.http_host),
+                    );
+                    if let Some(cplane_region) = metadata.other.get("region_id") {
+                        if let Some(cplane_region) = cplane_region.as_str() {
+                            // This region contains the cell number
+                            properties.insert(
+                                "neon_region".to_string(),
+                                PostHogFlagFilterPropertyValue::String(cplane_region.to_string()),
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to parse metadata.json: {}", e);
+                }
+            },
+            Err(e) => {
+                tracing::warn!("Failed to read metadata.json: {}", e);
+            }
+        }
+        Arc::new(properties)
     }
 
     fn collect_properties_inner(
@@ -251,8 +295,8 @@ impl FeatureResolver {
             return Ok(value.clone());
         }
 
-        if let Some(inner) = &self.inner {
-            let res = inner.feature_store().evaluate_multivariate(
+        if let Some(store) = self.feature_store() {
+            let res = store.evaluate_multivariate(
                 flag_key,
                 &tenant_id.to_string(),
                 &self.collect_properties(tenant_id, tenant_properties),
@@ -299,8 +343,8 @@ impl FeatureResolver {
             };
         }
 
-        if let Some(inner) = &self.inner {
-            let res = inner.feature_store().evaluate_boolean(
+        if let Some(store) = self.feature_store() {
+            let res = store.evaluate_boolean(
                 flag_key,
                 &tenant_id.to_string(),
                 &self.collect_properties(tenant_id, tenant_properties),
@@ -326,8 +370,8 @@ impl FeatureResolver {
     }
 
     pub fn is_feature_flag_boolean(&self, flag_key: &str) -> Result<bool, PostHogEvaluationError> {
-        if let Some(inner) = &self.inner {
-            inner.feature_store().is_feature_flag_boolean(flag_key)
+        if let Some(store) = self.feature_store() {
+            store.is_feature_flag_boolean(flag_key)
         } else {
             Err(PostHogEvaluationError::NotAvailable(
                 "PostHog integration is not enabled, cannot auto-determine the flag type"
@@ -472,5 +516,46 @@ impl TenantFeatureResolver {
             std::sync::atomic::Ordering::Relaxed,
         );
         // END: Update the feature flag on the critical path.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SPEC: &str = r#"{"flags":[{"id":1,"team_id":1,"key":"f","filters":{"groups":[{"properties":null,"rollout_percentage":100}],"multivariate":null},"active":true}]}"#;
+
+    #[test]
+    fn push_only_update_then_evaluate_boolean() {
+        let resolver = FeatureResolver::new_push_only(HashMap::new());
+        resolver.update(SPEC.to_string()).unwrap();
+        resolver
+            .evaluate_boolean("f", TenantId::generate(), &HashMap::new())
+            .unwrap();
+    }
+
+    #[test]
+    fn push_only_without_spec_is_not_available() {
+        let resolver = FeatureResolver::new_push_only(HashMap::new());
+        let err = resolver
+            .evaluate_boolean("f", TenantId::generate(), &HashMap::new())
+            .unwrap_err();
+        assert!(
+            matches!(err, PostHogEvaluationError::NotAvailable(_)),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn disabled_resolver_ignores_update() {
+        let resolver = FeatureResolver::new_disabled();
+        resolver.update(SPEC.to_string()).unwrap();
+        let err = resolver
+            .evaluate_boolean("f", TenantId::generate(), &HashMap::new())
+            .unwrap_err();
+        assert!(
+            matches!(err, PostHogEvaluationError::NotAvailable(_)),
+            "{err:?}"
+        );
     }
 }
