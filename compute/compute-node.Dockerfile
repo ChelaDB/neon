@@ -70,11 +70,6 @@
 # (compute-tools), all the extensions (all-extensions) and the extra components into
 # one image.
 #
-# VM image: The final image built by this dockerfile isn't actually the final image that
-# we use in computes VMs. There's an extra step that adds some files and makes other
-# small adjustments, and builds the QCOV2 filesystem image suitable for using in a VM.
-# That step is done by the 'vm-builder' tool. See the vm-compute-node-image job in the
-# build_and_test.yml github workflow for how that's done.
 
 ARG PG_VERSION
 ARG BUILD_TAG
