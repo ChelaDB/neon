@@ -3,15 +3,14 @@ name: build-tools
 # Builds build-tools/Dockerfile (bookworm, amd64) into
 #   ghcr.io/cheladb/neon-build-tools:<first 12 hex of sha256sum build-tools/Dockerfile>
 # unless that tag already exists. Every CI job runs inside this image.
-# pr.yml calls this workflow first, so the tag always exists before it is used.
+# pr.yml calls this workflow first, so the tag always exists before it is used
+# (this is also how a PR that changes build-tools/ gets its image: there is no
+# pull_request trigger here, it would duplicate pr.yml's build-tools job). The
+# shared `buildcache` tag is written only by a push to main.
 
 on:
   push:
     branches: [main]
-    paths:
-      - build-tools/**
-      - .github/workflows/build-tools.yml
-  pull_request:
     paths:
       - build-tools/**
       - .github/workflows/build-tools.yml
@@ -82,4 +81,5 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=registry,ref=ghcr.io/cheladb/neon-build-tools:buildcache
-          cache-to: type=registry,ref=ghcr.io/cheladb/neon-build-tools:buildcache,mode=max,image-manifest=true,oci-mediatypes=true
+          # Only a push to main writes the shared cache (a PR run must not poison it).
+          cache-to: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'type=registry,ref=ghcr.io/cheladb/neon-build-tools:buildcache,mode=max,image-manifest=true,oci-mediatypes=true' || '' }}

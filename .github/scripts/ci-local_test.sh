@@ -73,6 +73,44 @@ else
     failures=$((failures + 1))
 fi
 
+# The stale-state decision: old stamp + new stamp -> the dirs (inside the
+# chela-neon-target volume) to wipe before building. Stamp lines are key=value.
+base=$'image=i1\nbt=release\nmk=m1\nv14=a\nv15=b\nv16=c\nv17=d\npgxn=p1'
+all_dirs="build/pgxn-v14 build/pgxn-v15 build/pgxn-v16 build/pgxn-v17 build/v14 build/v15 build/v16 build/v17 build/walproposer-lib pg_install/v14 pg_install/v15 pg_install/v16 pg_install/v17"
+wipe() { stale_dirs "$1" "$2" | paste -sd' ' -; }
+expect "same stamp: nothing to wipe" "" "$(wipe "$base" "$base")"
+expect "no old stamp: wipe everything" "$all_dirs" "$(wipe "" "$base")"
+expect "v16 sha changed: its build, install and pgxn build" \
+    "build/pgxn-v16 build/v16 pg_install/v16" "$(wipe "$base" "${base/v16=c/v16=c2}")"
+expect "v17 sha changed: also walproposer-lib" \
+    "build/pgxn-v17 build/v17 build/walproposer-lib pg_install/v17" "$(wipe "$base" "${base/v17=d/v17=d2}")"
+expect "pgxn hash changed: every pgxn build and walproposer-lib, no Postgres build" \
+    "build/pgxn-v14 build/pgxn-v15 build/pgxn-v16 build/pgxn-v17 build/walproposer-lib" "$(wipe "$base" "${base/pgxn=p1/pgxn=p2}")"
+expect "v15 and pgxn changed: combined without duplicates" \
+    "build/pgxn-v14 build/pgxn-v15 build/pgxn-v16 build/pgxn-v17 build/v15 build/walproposer-lib pg_install/v15" \
+    "$(both="${base/v15=b/v15=b2}"; wipe "$base" "${both/pgxn=p1/pgxn=p2}")"
+expect "build-tools image changed: wipe everything" "$all_dirs" "$(wipe "$base" "${base/image=i1/image=i2}")"
+expect "build type changed: wipe everything" "$all_dirs" "$(wipe "$base" "${base/bt=release/bt=debug}")"
+expect "Makefile/postgres.mk hash changed: wipe everything" "$all_dirs" "$(wipe "$base" "${base/mk=m1/mk=m2}")"
+expect "old stamp missing a key: wipe everything" "$all_dirs" "$(wipe $'image=i1\nbt=release' "$base")"
+
+# seccomp=unconfined is for io_uring (the pageserver's tokio-epoll-uring); lint
+# (fmt, clippy, headers, self-tests) doesn't need it, the other steps do.
+if [[ "$(docker_args "$root" v17 release lint | paste -sd' ' -)" != *seccomp* ]]; then
+    echo "ok: the lint step runs with the default seccomp profile"
+else
+    echo "FAIL: the lint step must not use seccomp=unconfined"
+    failures=$((failures + 1))
+fi
+for step in build rust-tests regress; do
+    if [[ "$(docker_args "$root" v17 release "$step" | paste -sd' ' -)" == *seccomp=unconfined* ]]; then
+        echo "ok: the $step step keeps seccomp=unconfined"
+    else
+        echo "FAIL: the $step step needs seccomp=unconfined"
+        failures=$((failures + 1))
+    fi
+done
+
 if ((failures > 0)); then
     echo "$failures check(s) failed"
     exit 1

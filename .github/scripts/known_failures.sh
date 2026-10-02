@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Turns test_runner/known_failures.txt into pytest `--deselect` arguments,
 # printed one argument per line, so a caller can do:
-#   mapfile -t deselect < <(.github/scripts/known_failures.sh)
+#   .github/scripts/known_failures.sh >"$list"   # fails the caller under `set -e`
+#   mapfile -t deselect <"$list"
 #   ./scripts/pytest ... "${deselect[@]}"
+# (not `mapfile < <(...)`: that ignores the script's exit status).
 #
 # Usage: known_failures.sh [FILE...]
 # Several files are merged in argument order (scripts/ci-local.sh passes
@@ -13,7 +15,8 @@
 # tests that are quarantined.
 #
 # Format: one `<nodeid>  # <reason>` per line; blank lines and lines starting
-# with `#` are ignored. An entry without a reason is an error.
+# with `#` are ignored. An entry without a reason, or without `::` (not a
+# node id: a bare path would deselect a whole file), is an error.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -41,6 +44,10 @@ parse_file() {
         reason="${reason//[[:space:]]/}"
         if [[ -z "$reason" ]]; then
             echo "known_failures.sh: $file:$lineno: '$nodeid' has no '# reason'" >&2
+            exit 1
+        fi
+        if [[ "$nodeid" != *::* ]]; then
+            echo "known_failures.sh: $file:$lineno: '$nodeid' is not a pytest node id (no '::')" >&2
             exit 1
         fi
         printf -- '--deselect\n%s\n' "$nodeid"

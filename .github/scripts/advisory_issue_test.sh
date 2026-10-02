@@ -57,7 +57,16 @@ expect_empty() {
     fi
 }
 
+# The open-issue lookup must be restricted to open issues (a closed issue must
+# never receive the comment). run_case leaves the recorded calls in $tmp/calls.
 out="$(run_case "" 1 "RUSTSEC-2026-0001 RUSTSEC-2026-0002")"
+if grep -E '^issue list ' "$tmp/calls" | grep -Eq -- '--state open( |$)'; then
+    echo "ok: issue list is called with --state open"
+else
+    echo "FAIL: issue list must be called with --state open: [$(grep '^issue list' "$tmp/calls")]"
+    failures=$((failures + 1))
+fi
+
 expect_match "failure, no open issue: creates one" "$out" '^issue create .*--title New RustSec advisory'
 expect_match "failure, no open issue: body has the run URL" "$out" 'actions/runs/42'
 expect_match "failure, no open issue: body has the IDs" "$out" 'RUSTSEC-2026-0001.*RUSTSEC-2026-0002'

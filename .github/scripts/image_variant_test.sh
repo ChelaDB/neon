@@ -12,6 +12,11 @@ fi
 image="$1"
 fail=0
 
+if ! docker image inspect "$image" >/dev/null 2>&1; then
+  echo "FAIL: image '$image' not found locally (build or pull it first)" >&2
+  exit 1
+fi
+
 run() { docker run --rm --entrypoint sh "$image" -c "$1"; }
 
 if run 'test -x /usr/local/v17/bin/postgres'; then

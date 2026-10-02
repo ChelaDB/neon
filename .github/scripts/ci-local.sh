@@ -121,6 +121,9 @@ build_versions() {
 # options (one per line) shared by every step.
 docker_args() {
     local root="$1" pg="$2" bt="$3" step="$4" run="${5:-run}"
+    # seccomp=unconfined is for io_uring; lint doesn't need it.
+    local seccomp=(--security-opt seccomp=unconfined)
+    [[ "$step" == lint ]] && seccomp=(--label chela-neon-ci=lint)
     local vol_c="type=volume,src=${CARGO_VOLUME}" vol_t="type=volume,src=${TARGET_VOLUME}"
     printf '%s\n' \
         --rm --init \
@@ -128,7 +131,7 @@ docker_args() {
         --user 1000:1000 \
         --shm-size=512mb \
         --ulimit memlock=67108864:67108864 \
-        --security-opt seccomp=unconfined \
+        "${seccomp[@]}" \
         -v "$root:/work" -w /work \
         --mount "${vol_c},dst=/home/nonroot/.cargo/registry,volume-subpath=registry" \
         --mount "${vol_c},dst=/home/nonroot/.cargo/git,volume-subpath=git" \
@@ -381,6 +384,105 @@ ensure_image() {
     fi
 }
 
+# ---------------------------------------------------------------------------
+# Stale build state. The chela-neon-target volume keeps build/, pg_install/ and
+# target/ across runs, and several clones share it. postgres.mk never
+# re-configures once build/<v>/config.status exists, and make's mtime checks can
+# skip recompiling a changed pgxn source when another clone left newer .o files.
+# So each run compares a stamp of what the state was built from with the one of
+# this checkout, and wipes the affected dirs when they differ.
+#
+# Stamp: key=value lines: image, bt (build type), mk (Makefile + postgres.mk),
+# v14..v17 (the checked-out submodule commit, plus a diff hash if dirty) and
+# pgxn (hash of the contents of every pgxn/ file, tracked or not, so a dirty
+# tree counts).
+# ---------------------------------------------------------------------------
+
+STAMP_FILE="ci-local.stamp" # at the root of the target volume
+
+# stamp_get <stamp> <key>: the value, empty if absent.
+stamp_get() {
+    local line
+    while IFS= read -r line; do
+        [[ "${line%%=*}" == "$2" ]] && { echo "${line#*=}"; return 0; }
+    done <<<"$1"
+    return 0
+}
+
+# stale_dirs <old stamp> <new stamp>: the dirs inside the target volume to wipe,
+# one per line, sorted, without duplicates. A Postgres major's change wipes its
+# build, install and pgxn build (v17 also walproposer-lib, which links against
+# it); a pgxn change wipes every pgxn build and walproposer-lib; a different
+# image, build type or Makefile/postgres.mk, or a missing or incomplete old
+# stamp, wipes everything.
+stale_dirs() {
+    local old="$1" new="$2" k v all=0 pgxn=0
+    local dirs=()
+    for k in image bt mk v14 v15 v16 v17 pgxn; do
+        [[ -n "$(stamp_get "$old" "$k")" ]] || all=1
+    done
+    for k in image bt mk; do
+        [[ "$(stamp_get "$old" "$k")" == "$(stamp_get "$new" "$k")" ]] || all=1
+    done
+    [[ "$(stamp_get "$old" pgxn)" == "$(stamp_get "$new" pgxn)" ]] || pgxn=1
+    for v in "${MAJORS[@]}"; do
+        if ((all)) || [[ "$(stamp_get "$old" "$v")" != "$(stamp_get "$new" "$v")" ]]; then
+            dirs+=("build/$v" "pg_install/$v" "build/pgxn-$v")
+            [[ "$v" == v17 ]] && dirs+=(build/walproposer-lib)
+        fi
+        if ((all || pgxn)); then
+            dirs+=("build/pgxn-$v" build/walproposer-lib)
+        fi
+    done
+    ((${#dirs[@]} == 0)) && return 0
+    printf '%s\n' "${dirs[@]}" | sort -u
+}
+
+# hash_dirty <git dir>: a short hash of the uncommitted changes, empty if clean.
+hash_dirty() {
+    local d
+    d="$(git -C "$1" status --porcelain --untracked-files=all 2>/dev/null)" || true
+    [[ -z "$d" ]] && return 0
+    { echo "$d"; git -C "$1" diff HEAD 2>/dev/null || true; } | sha256sum | cut -c1-12
+}
+
+# build_stamp <repo root> <image>: the stamp of this checkout.
+build_stamp() {
+    local root="$1" v rev dirty pgxn mk
+    echo "image=${2##*:}"
+    echo "bt=$BUILD_TYPE"
+    mk="$(cat "$root/Makefile" "$root/postgres.mk" | sha256sum | cut -c1-12)"
+    echo "mk=$mk"
+    for v in "${MAJORS[@]}"; do
+        rev="$(git -C "$root/vendor/postgres-$v" rev-parse HEAD 2>/dev/null || echo none)"
+        dirty="$(hash_dirty "$root/vendor/postgres-$v")"
+        echo "$v=$rev${dirty:+-dirty$dirty}"
+    done
+    pgxn="$(cd "$root" && git ls-files -z --cached --others --exclude-standard pgxn |
+        sort -z | xargs -0 -r sha256sum 2>/dev/null | sha256sum | cut -c1-12)"
+    echo "pgxn=$pgxn"
+}
+
+# sync_build_state: wipes the stale dirs of the volume (if any) and records the stamp.
+sync_build_state() {
+    local old new dirs
+    new="$(build_stamp "$ROOT" "$IMAGE")"
+    old="$(docker run --rm --user root -v "${TARGET_VOLUME}:/t" "$IMAGE" \
+        bash -c "cat /t/$STAMP_FILE 2>/dev/null || true")"
+    dirs="$(stale_dirs "$old" "$new")"
+    if [[ -n "$dirs" ]]; then
+        echo "ci-local: build state differs from the last run's stamp; wiping: $(paste -sd' ' - <<<"$dirs")"
+        # shellcheck disable=SC2046
+        docker run --rm --user root -v "${TARGET_VOLUME}:/t" "$IMAGE" \
+            bash -c 'cd /t && rm -rf -- "$@" && mkdir -p build pg_install && chown nonroot:nonroot build pg_install' _ \
+            $(paste -sd' ' - <<<"$dirs")
+    else
+        echo "ci-local: build state matches the last run's stamp; nothing to wipe"
+    fi
+    docker run --rm --user root -e "STAMP=$new" -v "${TARGET_VOLUME}:/t" "$IMAGE" \
+        bash -c "printf '%s\\n' \"\$STAMP\" >/t/$STAMP_FILE"
+}
+
 ensure_volumes() {
     docker run --rm --user root \
         -v "${CARGO_VOLUME}:/c" -v "${TARGET_VOLUME}:/t" "$IMAGE" \
@@ -414,6 +516,7 @@ main() {
     ensure_submodules
     ensure_image
     ensure_volumes
+    sync_build_state
 
     OVERALL=0
     run_step lint step_lint || OVERALL=1
