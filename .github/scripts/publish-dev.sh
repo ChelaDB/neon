@@ -27,7 +27,8 @@
 # the images carry no SBOM or provenance attestations, and the builds use the local builder
 # cache, not the registry buildcache-dev tags.
 #
-# Requires docker, `docker login ghcr.io` (the build-tools package is private) and the four
+# Requires docker, `docker login ghcr.io` for the push (the packages are public: pulling, as the
+# builds do for the build-tools image, needs no login) and the four
 # vendor/postgres-v1x submodules at their recorded commits (git submodule update --init).
 
 REGISTRY_NS="ghcr.io/cheladb"
@@ -158,7 +159,7 @@ precheck() {
         return 1
     fi
     if ((NO_PUSH == 0)) && ! ghcr_login_present; then
-        die "no ghcr.io login found in the docker config (run: docker login ghcr.io)"
+        die "no ghcr.io login found in the docker config (pushing needs one even though the packages are public: docker login ghcr.io)"
         return 1
     fi
 }
