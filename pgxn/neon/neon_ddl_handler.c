@@ -34,6 +34,7 @@
 #include "commands/user.h"
 #include "fmgr.h"
 #include "libpq/crypt.h"
+#include "mb/pg_wchar.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "parser/parse_func.h"
@@ -245,6 +246,12 @@ ConstructDeltaMessage()
 
 #define ERROR_SIZE 1024
 
+static inline bool
+IsHttpBodySpace(char c)
+{
+	return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
 typedef struct
 {
 	char		str[ERROR_SIZE];
@@ -354,18 +361,30 @@ SendDeltasToControlPlane()
 				elog(LOG, "Received HTTP code %ld from control plane: %s",
 					 response_code,
 					 str.size != 0 ? str.str : "");
-				if (str.size != 0)
+				/*
+				 * The control plane's message goes to the client, with
+				 * surrounding whitespace trimmed; a whitespace-only body
+				 * counts as empty. The body was cut at ERROR_SIZE - 1 bytes,
+				 * possibly inside a multibyte character: drop the incomplete
+				 * character.
+				 */
 				{
-					/* The control plane's message goes to the client as is */
-					ereport(ERROR,
-							(errmsg_internal("%s", str.str)));
+					char	   *msg = str.str;
+					size_t		len = pg_mbcliplen(str.str, str.size, str.size);
+
+					while (len > 0 && IsHttpBodySpace(msg[len - 1]))
+						len--;
+					msg[len] = '\0';
+					while (*msg != '\0' && IsHttpBodySpace(*msg))
+						msg++;
+
+					if (*msg != '\0')
+						ereport(ERROR,
+								(errmsg_internal("%s", msg)));
 				}
-				else
-				{
-					ereport(ERROR,
-							(errmsg("role and database changes were refused (HTTP %ld)",
-									response_code)));
-				}
+				ereport(ERROR,
+						(errmsg("role and database changes were refused (HTTP %ld)",
+								response_code)));
 			}
 		}
 	}
@@ -454,16 +473,26 @@ MergeTable()
 		hash_seq_init(&status, old_table->db_table);
 		while ((entry = hash_seq_search(&status)) != NULL)
 		{
+			bool		found_parent = false;
 			DbEntry    *to_write = hash_search(
 											   CurrentDdlTable->db_table,
 											   entry->name,
 											   HASH_ENTER,
-											   NULL);
+											   &found_parent);
 
+			if (!found_parent)
+			{
+				to_write->owner = InvalidOid;
+				memset(to_write->old_name, 0, sizeof(to_write->old_name));
+			}
 			to_write->type = entry->type;
 			if (entry->owner != InvalidOid)
 				to_write->owner = entry->owner;
-			strlcpy(to_write->old_name, entry->old_name, NAMEDATALEN);
+
+			/*
+			 * An entry without old_name (e.g. an ALTER after a rename in the
+			 * parent) must keep the parent's old_name.
+			 */
 			if (entry->old_name[0] != '\0')
 			{
 				bool		found_old = false;
@@ -473,6 +502,7 @@ MergeTable()
 											  HASH_FIND,
 											  &found_old);
 
+				strlcpy(to_write->old_name, entry->old_name, NAMEDATALEN);
 				if (found_old)
 				{
 					if (old->old_name[0] != '\0')
@@ -500,21 +530,35 @@ MergeTable()
 		hash_seq_init(&status, old_table->role_table);
 		while ((entry = hash_seq_search(&status)) != NULL)
 		{
-			RoleEntry * old;
-			bool found_old = false;
+			RoleEntry  *old;
+			bool		found_old = false;
+			bool		found_parent = false;
 			RoleEntry  *to_write = hash_search(
 											   CurrentDdlTable->role_table,
 											   entry->name,
 											   HASH_ENTER,
-											   NULL);
+											   &found_parent);
 
+			if (!found_parent)
+				memset(to_write->old_name, 0, sizeof(to_write->old_name));
 			to_write->type = entry->type;
 			to_write->password = entry->password;
 			to_write->password_null = entry->password_null;
-			strlcpy(to_write->old_name, entry->old_name, NAMEDATALEN);
+
+			/*
+			 * An entry without old_name (e.g. a PASSWORD change after a
+			 * rename in the parent) must keep the parent's old_name.
+			 */
 			if (entry->old_name[0] == '\0')
 				continue;
+			strlcpy(to_write->old_name, entry->old_name, NAMEDATALEN);
 
+			/*
+			 * A rename in this subtransaction: carry over what the parent
+			 * knew about the old name (its own old_name, which keeps the
+			 * chain, and its password), unless this subtransaction set a
+			 * password itself.
+			 */
 			old = hash_search(
 							  CurrentDdlTable->role_table,
 							  entry->old_name,
@@ -522,7 +566,13 @@ MergeTable()
 							  &found_old);
 			if (!found_old)
 				continue;
-			strlcpy(to_write->old_name, old->old_name, NAMEDATALEN);
+			if (old->old_name[0] != '\0')
+				strlcpy(to_write->old_name, old->old_name, NAMEDATALEN);
+			if (!entry->password && !entry->password_null)
+			{
+				to_write->password = old->password;
+				to_write->password_null = old->password_null;
+			}
 			hash_search(CurrentDdlTable->role_table,
 						entry->old_name,
 						HASH_REMOVE,
@@ -1050,6 +1100,11 @@ neon_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
 		 * privilege escalation risks, but superuser roles are only used for
 		 * infrastructure maintenance operations, where we prefer to skip
 		 * running user-defined code.
+		 *
+		 * Note: a SECURITY DEFINER function owned by a non-superuser still
+		 * runs, as its owner and with no privilege gain, when only the
+		 * caller's current user is a superuser (the current user is the
+		 * owner while the function runs).
 		 */
 		if (OidIsValid(super_role_oid) && !function_is_owned_by_super)
 		{
@@ -1531,7 +1586,7 @@ InitDDLHandler()
 
 	DefineCustomStringVariable(
 							   "neon.protected_databases",
-							   "Comma-separated databases that only a superuser can drop",
+							   "Databases that only a superuser can drop: exact names, comma-separated, whitespace trimmed",
 							   NULL,
 							   &ProtectedDatabases,
 							   "",
