@@ -73,12 +73,10 @@ pub struct ComputeSpec {
     #[serde(default)]
     pub disk_quota_bytes: Option<u64>,
 
-    /// Disables the vm-monitor behavior that resizes LFC on upscale/downscale, instead relying on
-    /// the initial size of LFC.
+    /// Formerly disabled the vm-monitor behavior that resizes LFC on upscale/downscale.
     ///
-    /// This is intended for use when the LFC size is being overridden from the default but
-    /// autoscaling is still enabled, and we don't want the vm-monitor to interfere with the custom
-    /// LFC sizing.
+    /// Unused by this fork: there is no vm-monitor (it was removed) and nothing resizes the LFC
+    /// at runtime. The field is kept so that existing compute specs still deserialize.
     #[serde(default)]
     pub disable_lfc_resizing: Option<bool>,
 

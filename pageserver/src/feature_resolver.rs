@@ -558,4 +558,65 @@ mod tests {
             "{err:?}"
         );
     }
+
+    #[test]
+    fn push_only_force_override_wins_over_pushed_spec() {
+        let resolver = FeatureResolver::new_push_only(HashMap::new());
+        resolver.update(SPEC.to_string()).unwrap();
+        let tenant_id = TenantId::generate();
+        // The pushed spec says "f" is on for everyone.
+        resolver
+            .evaluate_boolean("f", tenant_id, &HashMap::new())
+            .unwrap();
+        // A force-override of "false" wins over it.
+        resolver.force_override_for_testing("f", Some("false"));
+        let err = resolver
+            .evaluate_boolean("f", tenant_id, &HashMap::new())
+            .unwrap_err();
+        assert!(
+            matches!(err, PostHogEvaluationError::NoConditionGroupMatched),
+            "{err:?}"
+        );
+        // Removing the override falls back to the pushed spec.
+        resolver.force_override_for_testing("f", None);
+        resolver
+            .evaluate_boolean("f", tenant_id, &HashMap::new())
+            .unwrap();
+    }
+
+    #[test]
+    fn push_only_property_flag_uses_internal_properties() {
+        const PROPERTY_SPEC: &str = r#"{"flags":[{"id":2,"team_id":1,"key":"g","filters":{"groups":[{"properties":[{"key":"region","type":"person","value":["aws-us-east-1"],"operator":"exact"}],"rollout_percentage":100}],"multivariate":null},"active":true}]}"#;
+        let props = |region: &str| {
+            HashMap::from([(
+                "region".to_string(),
+                PostHogFlagFilterPropertyValue::String(region.to_string()),
+            )])
+        };
+        let tenant_id = TenantId::generate();
+
+        let matching = FeatureResolver::new_push_only(props("aws-us-east-1"));
+        matching.update(PROPERTY_SPEC.to_string()).unwrap();
+        matching
+            .evaluate_boolean("g", tenant_id, &HashMap::new())
+            .unwrap();
+
+        let other = FeatureResolver::new_push_only(props("aws-eu-west-1"));
+        other.update(PROPERTY_SPEC.to_string()).unwrap();
+        let err = other
+            .evaluate_boolean("g", tenant_id, &HashMap::new())
+            .unwrap_err();
+        assert!(
+            matches!(err, PostHogEvaluationError::NoConditionGroupMatched),
+            "{err:?}"
+        );
+
+        // Without the property at all, the flag does not match either.
+        let none = FeatureResolver::new_push_only(HashMap::new());
+        none.update(PROPERTY_SPEC.to_string()).unwrap();
+        assert!(
+            none.evaluate_boolean("g", tenant_id, &HashMap::new())
+                .is_err()
+        );
+    }
 }
