@@ -122,8 +122,7 @@ def test_owner_event_trigger_fires_for_owner_ddl(neon_simple_env: NeonEnv):
             """
         )
         cur.execute(
-            "CREATE EVENT TRIGGER et_log_trg ON ddl_command_end "
-            "EXECUTE FUNCTION public.et_log_fn()"
+            "CREATE EVENT TRIGGER et_log_trg ON ddl_command_end EXECUTE FUNCTION public.et_log_fn()"
         )
         cur.execute("CREATE TABLE public.t1 (x int)")
         cur.execute("SELECT who, tag FROM public.et_log")

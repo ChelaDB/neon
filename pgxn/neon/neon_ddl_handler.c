@@ -985,6 +985,11 @@ neon_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
 		 * can differ from the session user (SET ROLE, SECURITY DEFINER
 		 * functions, or an extension script that runs as the bootstrap
 		 * superuser), and the function would run as the current user.
+		 *
+		 * For a SECURITY DEFINER function, fmgr has already switched the
+		 * current user to the function owner when this hook runs, so the
+		 * current user is the owner here, which is the role the function
+		 * runs as.
 		 */
 		Oid session_role_oid = GetSessionUserId();
 		Oid current_role_oid = GetUserId();
