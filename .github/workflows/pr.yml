@@ -80,6 +80,9 @@ jobs:
       - name: advisory_issue.sh self-test
         run: .github/scripts/advisory_issue_test.sh
 
+      - name: publish-dev.sh self-test
+        run: .github/scripts/publish-dev_test.sh
+
       - name: actionlint
         if: ${{ !cancelled() }}
         run: |
