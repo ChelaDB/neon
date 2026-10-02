@@ -110,6 +110,13 @@ image_name() {
     echo "${IMAGE_REPO}:$(sha256sum "$1/build-tools/Dockerfile" | cut -c1-12)"
 }
 
+# build_versions <pg>: POSTGRES_VERSIONS for the build step. walproposer-lib
+# (built by `make all`) always uses v17 (Makefile: `walproposer-lib:
+# neon-pg-ext-v17`), so v17 stays in the list for a v14-v16 build.
+build_versions() {
+    if [[ "$1" == "v17" ]]; then echo "v17"; else echo "$1 v17"; fi
+}
+
 # docker_args <repo root> <pg> <build type> <step> [run dir name]: the `docker run`
 # options (one per line) shared by every step.
 docker_args() {
@@ -221,8 +228,8 @@ step_build() {
     done
     make -j"$(nproc)" "${others[@]}"
     # shellcheck disable=SC2086
-    mold -run make -j"$(nproc)" POSTGRES_VERSIONS="$PG_VERSION" BUILD_TYPE="$BUILD_TYPE" \
-        CARGO_BUILD_FLAGS="$CARGO_FLAGS" all
+    mold -run make -j"$(nproc)" POSTGRES_VERSIONS="$(build_versions "$PG_VERSION")" \
+        BUILD_TYPE="$BUILD_TYPE" CARGO_BUILD_FLAGS="$CARGO_FLAGS" all
     df -h /work /work/target
     du -sh target pg_install build 2>/dev/null || true
     echo "build took $(($(date +%s) - start))s"
