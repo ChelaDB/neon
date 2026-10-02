@@ -49,7 +49,12 @@ def test_ddl_forwarding_errors_unreachable(
     [
         (400, "custom refusal", "custom refusal"),
         (403, "", "role and database changes were refused (HTTP 403)"),
+        # A whitespace-only body counts as empty
+        (403, "  \n\t \r\n", "role and database changes were refused (HTTP 403)"),
+        # Surrounding whitespace is trimmed from a message
+        (400, "  \n padded refusal \r\n", "padded refusal"),
     ],
+    ids=["body", "empty", "whitespace_only", "trimmed"],
 )
 def test_ddl_forwarding_errors_refused(
     httpserver: HTTPServer,
@@ -67,6 +72,42 @@ def test_ddl_forwarding_errors_refused(
     start_pg(vanilla_pg, host, port)
 
     with vanilla_pg.cursor() as cur:
+        with pytest.raises(psycopg2.Error) as exc_info:
+            cur.execute("CREATE ROLE r")
+    assert exc_info.value.diag.message_primary == expected
+
+
+@pytest.mark.parametrize(
+    "body,expected",
+    [
+        # The 1023-byte limit falls inside a 2-byte character: it is dropped whole
+        ("a" * 1022 + "\u00e9", "a" * 1022),
+        # ... or inside a 3-byte character
+        ("a" * 1021 + "\u20ac", "a" * 1021),
+        # ... or inside a 4-byte character
+        ("a" * 1020 + "\U0001f600", "a" * 1020),
+        # A character that ends exactly at the limit is kept
+        ("a" * 1021 + "\u00e9", "a" * 1021 + "\u00e9"),
+    ],
+    ids=["split_2_byte", "split_3_byte", "split_4_byte", "fits_exactly"],
+)
+def test_ddl_forwarding_errors_truncation(
+    httpserver: HTTPServer,
+    vanilla_pg: VanillaPostgres,
+    httpserver_listen_address: ListenAddress,
+    body: str,
+    expected: str,
+):
+    """A long refusal is cut on a character boundary, never inside a character."""
+    (host, port) = httpserver_listen_address
+    httpserver.expect_request(ENDPOINT, method="PATCH").respond_with_handler(
+        lambda request: Response(status=400, response=body.encode("utf-8"))
+    )
+    start_pg(vanilla_pg, host, port)
+
+    with vanilla_pg.cursor() as cur:
+        cur.execute("SHOW server_encoding")
+        assert cur.fetchone() == ("UTF8",)
         with pytest.raises(psycopg2.Error) as exc_info:
             cur.execute("CREATE ROLE r")
     assert exc_info.value.diag.message_primary == expected

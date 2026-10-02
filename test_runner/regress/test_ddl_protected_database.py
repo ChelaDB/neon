@@ -80,3 +80,84 @@ def test_ddl_protected_database(
         # A superuser bypasses the protection
         admin.execute(f"DROP DATABASE {MAIN_DB}")
         assert db_connlimit(admin, MAIN_DB) is None
+
+
+def start_with_protected(
+    httpserver: HTTPServer,
+    vanilla_pg: VanillaPostgres,
+    host: str,
+    port: int,
+    protected: str,
+    extra: list[str] | None = None,
+):
+    endpoint = "/test/roles_and_databases"
+    httpserver.expect_request(endpoint, method="PATCH").respond_with_handler(
+        lambda request: Response(status=200)
+    )
+    vanilla_pg.configure(
+        [
+            f"neon.console_url=http://{host}:{port}{endpoint}",
+            "shared_preload_libraries = 'neon'",
+            f"neon.protected_databases = '{protected}'",
+            *(extra or []),
+        ]
+    )
+    vanilla_pg.start()
+
+
+def test_ddl_protected_database_forward_ddl_off(
+    httpserver: HTTPServer,
+    vanilla_pg: VanillaPostgres,
+    httpserver_listen_address: ListenAddress,
+):
+    """The protection is independent of neon.forward_ddl."""
+    (host, port) = httpserver_listen_address
+    start_with_protected(
+        httpserver, vanilla_pg, host, port, MAIN_DB, extra=["neon.forward_ddl = off"]
+    )
+
+    with vanilla_pg.cursor() as admin:
+        admin.execute("CREATE ROLE neon_superuser NOLOGIN CREATEDB CREATEROLE")
+        admin.execute("CREATE ROLE owner LOGIN NOSUPERUSER CREATEDB PASSWORD 'pw'")
+        admin.execute(f"CREATE DATABASE {MAIN_DB} OWNER owner")
+        admin.execute("SHOW neon.forward_ddl")
+        assert admin.fetchone() == ("off",)
+
+        with vanilla_pg.cursor(user="owner", password="pw") as owner:
+            assert_refused(owner, f"DROP DATABASE {MAIN_DB}")
+            assert_refused(owner, f"DROP DATABASE IF EXISTS {MAIN_DB}")
+        assert db_connlimit(admin, MAIN_DB) != -2
+
+
+def test_ddl_protected_database_list_parsing(
+    httpserver: HTTPServer,
+    vanilla_pg: VanillaPostgres,
+    httpserver_listen_address: ListenAddress,
+):
+    """
+    Names are exact, comma-separated and whitespace-trimmed: several entries
+    work, spaces around them are ignored, and a name that is a prefix of a
+    protected one (or the other way round) is not protected.
+    """
+    (host, port) = httpserver_listen_address
+    start_with_protected(httpserver, vanilla_pg, host, port, "  alpha ,beta,\tgamma  , , delta")
+
+    protected = ["alpha", "beta", "gamma", "delta"]
+    unprotected = ["alp", "alph", "alphabet", "bet", "betaa", "gam", "deltas"]
+    with vanilla_pg.cursor() as admin:
+        admin.execute("CREATE ROLE neon_superuser NOLOGIN CREATEDB CREATEROLE")
+        admin.execute("CREATE ROLE owner LOGIN NOSUPERUSER CREATEDB PASSWORD 'pw'")
+        for name in protected + unprotected:
+            admin.execute(f"CREATE DATABASE {name} OWNER owner")
+
+        with vanilla_pg.cursor(user="owner", password="pw") as owner:
+            for name in protected:
+                with pytest.raises(InsufficientPrivilege) as exc_info:
+                    owner.execute(f"DROP DATABASE {name}")
+                assert exc_info.value.diag.message_primary == (
+                    f"the branch's main database \"{name}\" can't be dropped"
+                )
+                assert db_connlimit(admin, name) is not None
+            for name in unprotected:
+                owner.execute(f"DROP DATABASE {name}")
+                assert db_connlimit(admin, name) is None
