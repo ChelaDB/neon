@@ -206,6 +206,7 @@ step_lint() {
     check "advisory_issue.sh self-test" .github/scripts/advisory_issue_test.sh
     check "ci-local.sh self-test" .github/scripts/ci-local_test.sh
     check "publish-dev.sh self-test" .github/scripts/publish-dev_test.sh
+    check "check_tag_free.sh self-test" .github/scripts/check_tag_free_test.sh
     check "actionlint" lint_actionlint
     check "cargo fmt" cargo fmt --all -- --check
     check "postgres headers" make -j"$(nproc)" postgres-headers

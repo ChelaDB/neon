@@ -15,8 +15,9 @@ We do not rewrite the core engine (pageserver, safekeepers, or Neon's PostgreSQL
 When a new PostgreSQL minor release becomes available:
 
 1. Merge the `postgres/postgres REL_x_y` tag into `REL_x_STABLE_cheladb` in ChelaDB/postgres (pull request, run `make check`).
-2. Bump the submodule commit here and update `vendor/revisions.json` (pull request, run full regression CI).
-3. Process oldest minors first.
+2. Bump the submodule commit here and update `vendor/revisions.json` (pull request). The gate is `.github/scripts/ci-local.sh` (lint, build, Rust tests) on the bump, plus a local `make check` for that major in ChelaDB/postgres.
+3. Publish dev images with `.github/scripts/publish-dev.sh` and run cheladb's e2e against them.
+4. Process oldest minors first.
 
 Neon's own `REL_x_STABLE_neon` branches remain read-only references; we do not track them.
 
@@ -26,12 +27,12 @@ CI quarantines known test failures in `test_runner/known_failures.txt`, each wit
 
 ## Checks
 
-The gate for every PR is `.github/scripts/ci-local.sh`: lint (self-tests, actionlint, fmt, clippy, cargo deny, ruff, mypy), build, and the Rust tests. It runs on a developer machine inside the same `ghcr.io/cheladb/neon-build-tools` image as `.github/workflows/pr.yml` (needs `docker login ghcr.io` once), with caches in the Docker volumes `chela-neon-cargo` and `chela-neon-target` and logs under `.ci-local/` (git-ignored). Use `--pg v14|v15|v16` for the older majors.
+The gate for every PR is `.github/scripts/ci-local.sh`: lint (self-tests, actionlint, fmt, clippy, cargo deny, ruff, mypy), build, and the Rust tests. It runs on a developer machine inside the same `ghcr.io/cheladb/neon-build-tools` image as `.github/workflows/pr.yml` (pulling the image needs no login: the GHCR packages are public), with caches in the Docker volumes `chela-neon-cargo` and `chela-neon-target` and logs under `.ci-local/` (git-ignored). Use `--pg v14|v15|v16` for the older majors.
 
-Per-PR GitHub CI is manual: `pr.yml` is `workflow_dispatch` only until the fork is integrated, and branch protection on `main` requires a PR but no status check.
+GitHub CI is manual-only, as standing policy: `pr.yml` is `workflow_dispatch` only, and branch protection on `main` requires a PR but no status check. `images.yml` runs only for `v*` tags and the platform images, by hand.
 
 Neon's pytest regression suite is opt-in and required for no PR: `ci-local.sh --regress [-k <expr>] [-n <workers>]` runs it for a targeted check, for example to debug one test. When an image changes, cheladb's own e2e covers the parts we use. The regression run deselects `test_runner/known_failures.txt` (fails on GitHub's runners too) and `test_runner/known_failures.local.txt` (fails only in the local run); both use the `<nodeid>  # <reason>` format and may only shrink.
 
 ## Publishing dev images
 
-The Postgres 17 dev images are built on a developer machine and pushed from there (the GitHub job took 111 minutes): `.github/scripts/publish-dev.sh [--no-push] [--only storage|compute]` builds `ghcr.io/cheladb/neon-storage:<sha12>-dev` and `ghcr.io/cheladb/neon-compute-v17:<sha12>-dev` from the checked-out commit (`<sha12>` = cheladb's `neon_tag`), runs `image_variant_test.sh` on the storage image, and only then pushes. It needs a clean tree at a commit on `origin/main`, initialised submodules and `docker login ghcr.io`, and it refuses to overwrite an existing tag without `--force-retag`. The images carry no SBOM or provenance attestations. `images.yml` stays for `v*` tags and the platform images, run by hand. After a push, pin the printed `...:<sha12>-dev@sha256:<digest>` references in cheladb as the Compose defaults of `NEON_IMAGE` (storage) and `COMPUTE_NODE_IMAGE` (compute), then run cheladb's e2e against them.
+The Postgres 17 dev images are built on a developer machine and pushed from there (the GitHub job took 111 minutes): `.github/scripts/publish-dev.sh [--no-push] [--only storage|compute]` builds `ghcr.io/cheladb/neon-storage:<sha12>-dev` and `ghcr.io/cheladb/neon-compute-v17:<sha12>-dev` from the checked-out commit (`<sha12>` = cheladb's `neon_tag`), runs `image_variant_test.sh` on the storage image, and only then pushes. It needs a clean tree at a commit on `origin/main`, initialised submodules, and `docker login ghcr.io` for the push (the packages are public: pulling needs no login, pushing does), and it refuses to overwrite an existing tag without `--force-retag`. The images carry no SBOM or provenance attestations. `images.yml` stays for `v*` tags and the platform images, run by hand; its dev jobs remain as a manual fallback (`variant=dev`) but fail when `<sha12>-dev` already exists unless the `force_retag` input is true, so a CI run cannot retag a locally published image. After a push, pin the printed `...:<sha12>-dev@sha256:<digest>` references in cheladb as the Compose defaults of `NEON_IMAGE` (storage) and `COMPUTE_NODE_IMAGE` (compute), then run cheladb's e2e against them.
