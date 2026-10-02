@@ -89,6 +89,14 @@ typedef struct
 	char		name[NAMEDATALEN];
 	char		old_name[NAMEDATALEN];
 	const char *password;
+
+	/*
+	 * True when the transaction ran ALTER ROLE ... PASSWORD NULL on this role
+	 * (and set no password afterwards). Only forwarded, as an explicit JSON
+	 * null, when the role was also renamed: the receiver then drops its copy
+	 * of the password.
+	 */
+	bool		password_null;
 	OpType		type;
 } RoleEntry;
 
@@ -108,6 +116,20 @@ typedef struct DdlHashTable
 static DdlHashTable RootTable;
 static DdlHashTable *CurrentDdlTable = &RootTable;
 static int SubtransLevel; /* current nesting level of subtransactions */
+
+static void
+PushKeyNull(JsonbParseState **state, char *key)
+{
+	JsonbValue	k,
+				v;
+
+	k.type = jbvString;
+	k.val.string.len = strlen(key);
+	k.val.string.val = key;
+	v.type = jbvNull;
+	pushJsonbValue(state, WJB_KEY, &k);
+	pushJsonbValue(state, WJB_VALUE, &v);
+}
 
 static void
 PushKeyValue(JsonbParseState **state, char *key, char *value)
@@ -199,6 +221,11 @@ ConstructDeltaMessage()
 				{
 					elog(ERROR, "Failed to get encrypted password: %s", logdetail);
 				}
+			}
+			else if (entry->password_null && entry->old_name[0] != '\0')
+			{
+				/* Renamed, then PASSWORD NULL: an explicit null, no encrypted_password */
+				PushKeyNull(&state, "password");
 			}
 			if (entry->old_name[0] != '\0')
 			{
@@ -483,6 +510,7 @@ MergeTable()
 
 			to_write->type = entry->type;
 			to_write->password = entry->password;
+			to_write->password_null = entry->password_null;
 			strlcpy(to_write->old_name, entry->old_name, NAMEDATALEN);
 			if (entry->old_name[0] == '\0')
 				continue;
@@ -713,6 +741,7 @@ HandleCreateRole(CreateRoleStmt *stmt)
 		entry->password = MemoryContextStrdup(CurTransactionContext, strVal(dpass->arg));
 	else
 		entry->password = NULL;
+	entry->password_null = false;
 	entry->type = Op_Set;
 }
 
@@ -757,6 +786,7 @@ HandleAlterRole(AlterRoleStmt *stmt)
 		entry->password = MemoryContextStrdup(CurTransactionContext, strVal(dpass->arg));
 	else
 		entry->password = NULL;
+	entry->password_null = (dpass->arg == NULL);
 	entry->type = Op_Set;
 
 	pfree(role_name);
@@ -790,6 +820,7 @@ HandleRoleRename(RenameStmt *stmt)
 		else
 			strlcpy(entry_for_new_name->old_name, entry->name, NAMEDATALEN);
 		entry_for_new_name->password = entry->password;
+		entry_for_new_name->password_null = entry->password_null;
 		hash_search(
 					CurrentDdlTable->role_table,
 					entry->name,
@@ -800,6 +831,7 @@ HandleRoleRename(RenameStmt *stmt)
 	{
 		strlcpy(entry_for_new_name->old_name, stmt->subname, NAMEDATALEN);
 		entry_for_new_name->password = NULL;
+		entry_for_new_name->password_null = false;
 	}
 }
 
@@ -822,6 +854,7 @@ HandleDropRole(DropRoleStmt *stmt)
 
 		entry->type = Op_Delete;
 		entry->password = NULL;
+		entry->password_null = false;
 		if (!found)
 			memset(entry->old_name, 0, sizeof(entry->old_name));
 	}
