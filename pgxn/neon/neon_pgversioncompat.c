@@ -43,9 +43,17 @@ InitMaterializedSRF(FunctionCallInfo fcinfo, bits32 flags)
 	MemoryContextSwitchTo(old_context);
 }
 
+/*
+ * PG14 has no GetWALInsertionTimeLine(). A promoted replica no longer starts a
+ * new timeline (the "Do not create new timeline for replica promotion" patch
+ * in our Postgres branches), and Neon storage assumes timeline 1 throughout
+ * (see walprop_pg_get_timeline_id()), so the insertion timeline is always 1.
+ * The old "ThisTimeLineID + 1" pointed the walproposer's WAL reader at
+ * timeline 2 after a promotion, so a promoted replica hung at shutdown.
+ */
 TimeLineID GetWALInsertionTimeLine(void)
 {
-	return ThisTimeLineID + 1;
+	return 1;
 }
 
 
