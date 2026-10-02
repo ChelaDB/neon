@@ -4,10 +4,6 @@ images, or included in the compute images.
 compute-node.Dockerfile
 	To build the compute image
 
-vm-image-spec.yaml
-	Instructions for vm-builder, to turn the compute-node image into
-	corresponding vm-compute-node image.
-
 etc/
 	Configuration files included in /etc in the compute image
 

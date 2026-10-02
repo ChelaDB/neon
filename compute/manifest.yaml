@@ -84,8 +84,7 @@ pg_settings:
     # * compute_activity_monitor (from compute_ctl)
     # * postgres-exporter (metrics collector; it has 2 connections)
     # * sql_exporter (metrics collector; we have 2 instances [1 for us & users; 1 for autoscaling])
-    # * vm-monitor (to query & change file cache size)
-    # i.e. total of 6. Let's reserve 7, so there's still at least one left over.
+    # i.e. total of 5. Let's reserve 7, so there's still at least one left over.
     superuser_reserved_connections: "7"
     synchronous_standby_names: "walproposer"
 

@@ -98,14 +98,6 @@ pub struct ComputeNodeParams {
     pub resize_swap_on_bind: bool,
     pub set_disk_quota_for_fs: Option<String>,
 
-    // VM monitor parameters
-    #[cfg(target_os = "linux")]
-    pub filecache_connstr: String,
-    #[cfg(target_os = "linux")]
-    pub cgroup: String,
-    #[cfg(target_os = "linux")]
-    pub vm_monitor_addr: String,
-
     pub pgdata: String,
     pub pgbin: String,
     pub pgversion: String,
@@ -435,13 +427,6 @@ impl PostgresHandle {
     }
 }
 
-struct StartVmMonitorResult {
-    #[cfg(target_os = "linux")]
-    token: tokio_util::sync::CancellationToken,
-    #[cfg(target_os = "linux")]
-    vm_monitor: Option<JoinHandle<Result<()>>>,
-}
-
 // BEGIN_HADRON
 /// This function creates roles that are used by Databricks.
 /// These roles are not needs to be botostrapped at PG Compute provisioning time.
@@ -677,15 +662,10 @@ impl ComputeNode {
 
         // We have a spec, start the compute
         let mut delay_exit = false;
-        let mut vm_monitor = None;
         let mut pg_process: Option<PostgresHandle> = None;
 
         match this.start_compute(&mut pg_process) {
-            Ok(()) => {
-                // Success! Launch remaining services (just vm-monitor currently)
-                vm_monitor =
-                    Some(this.start_vm_monitor(pspec.spec.disable_lfc_resizing.unwrap_or(false)));
-            }
+            Ok(()) => {}
             Err(err) => {
                 // Something went wrong with the startup. Log it and expose the error to
                 // HTTP status requests.
@@ -712,24 +692,6 @@ impl ComputeNode {
 
         this.terminate_extension_stats_task();
         this.terminate_lfc_offload_task();
-
-        // Terminate the vm_monitor so it releases the file watcher on
-        // /sys/fs/cgroup/neon-postgres.
-        // Note: the vm-monitor only runs on linux because it requires cgroups.
-        if let Some(vm_monitor) = vm_monitor {
-            cfg_if::cfg_if! {
-                if #[cfg(target_os = "linux")] {
-                    // Kills all threads spawned by the monitor
-                    vm_monitor.token.cancel();
-                    if let Some(handle) = vm_monitor.vm_monitor {
-                        // Kills the actual task running the monitor
-                        handle.abort();
-                    }
-                } else {
-                    _ = vm_monitor; // appease unused lint on macOS
-                }
-            }
-        }
 
         // Reap the postgres process
         delay_exit |= this.cleanup_after_postgres_exit()?;
@@ -1087,45 +1049,6 @@ impl ComputeNode {
         info!("{:?}", remote_ext_metrics);
 
         Ok(())
-    }
-
-    /// Start the vm-monitor if directed to. The vm-monitor only runs on linux
-    /// because it requires cgroups.
-    fn start_vm_monitor(&self, disable_lfc_resizing: bool) -> StartVmMonitorResult {
-        cfg_if::cfg_if! {
-            if #[cfg(target_os = "linux")] {
-                use std::env;
-                use tokio_util::sync::CancellationToken;
-
-                // This token is used internally by the monitor to clean up all threads
-                let token = CancellationToken::new();
-
-                // don't pass postgres connection string to vm-monitor if we don't want it to resize LFC
-                let pgconnstr = if disable_lfc_resizing {
-                    None
-                } else {
-                    Some(self.params.filecache_connstr.clone())
-                };
-
-                let vm_monitor = if env::var_os("AUTOSCALING").is_some() {
-                    let vm_monitor = tokio::spawn(vm_monitor::start(
-                        Box::leak(Box::new(vm_monitor::Args {
-                            cgroup: Some(self.params.cgroup.clone()),
-                            pgconnstr,
-                            addr: self.params.vm_monitor_addr.clone(),
-                        })),
-                        token.clone(),
-                    ));
-                    Some(vm_monitor)
-                } else {
-                    None
-                };
-                StartVmMonitorResult { token, vm_monitor }
-            } else {
-                _ = disable_lfc_resizing; // appease unused lint on macOS
-                StartVmMonitorResult { }
-            }
-        }
     }
 
     fn cleanup_after_postgres_exit(&self) -> Result<bool> {
