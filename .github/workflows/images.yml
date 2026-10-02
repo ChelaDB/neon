@@ -2,7 +2,8 @@ name: images
 
 # Publishes the Neon images to ghcr.io/cheladb (private packages), amd64 only.
 #
-#   dev       v* tags and workflow_dispatch (variant=dev, the default): the Postgres 17 variants
+#   dev       v* tags and workflow_dispatch (variant=dev, the default): the Postgres 17 variants,
+#             built by two parallel jobs (dev-storage, dev-compute)
 #               neon-storage:<sha12>-dev               storage image, PG_VERSIONS=v17
 #               neon-compute-v17:<sha12>-dev   PG_VERSION=v17, EXTENSIONS=minimal
 #   platform  v* tags and workflow_dispatch (variant=platform) only, no schedule: every major, all extensions
@@ -82,7 +83,8 @@ jobs:
             echo "build_tools_tag=${BUILD_TOOLS_IMAGE##*:}"
           } | tee -a "$GITHUB_OUTPUT"
 
-  dev:
+  # dev-storage and dev-compute run in parallel: the compute build alone takes over an hour.
+  dev-storage:
     if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.variant == 'dev')
     needs: [meta]
     runs-on: ubuntu-24.04
@@ -118,10 +120,6 @@ jobs:
             echo "storage<<EOF"
             echo "${REGISTRY_NS}/neon-storage:${SHA12}-dev"
             [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/neon-storage:${REF_TAG}-dev"
-            echo "EOF"
-            echo "compute<<EOF"
-            echo "${REGISTRY_NS}/neon-compute-v17:${SHA12}-dev"
-            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/neon-compute-v17:${REF_TAG}-dev"
             echo "EOF"
           } | tee -a "$GITHUB_OUTPUT"
 
@@ -171,6 +169,50 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-dev
           cache-to: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
 
+      - name: Digest
+        env:
+          DIGEST: ${{ steps.push-storage.outputs.digest }}
+        run: echo "- neon-storage:${SHA12}-dev \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  dev-compute:
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.variant == 'dev')
+    needs: [meta]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      SHA12: ${{ needs.meta.outputs.sha12 }}
+      REF_TAG: ${{ needs.meta.outputs.ref_tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The storage build needs the headers of every Postgres major (postgres_ffi), so all four.
+          submodules: true
+          persist-credentials: false
+
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Tags
+        id: tags
+        run: |
+          {
+            echo "compute<<EOF"
+            echo "${REGISTRY_NS}/neon-compute-v17:${SHA12}-dev"
+            [ -z "$REF_TAG" ] || echo "${REGISTRY_NS}/neon-compute-v17:${REF_TAG}-dev"
+            echo "EOF"
+          } | tee -a "$GITHUB_OUTPUT"
+
       - name: Push the compute image
         id: push-compute
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -193,16 +235,10 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/cheladb/neon-compute-v17:buildcache-dev
           cache-to: type=registry,ref=ghcr.io/cheladb/neon-compute-v17:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
 
-      - name: Digests
+      - name: Digest
         env:
-          STORAGE_DIGEST: ${{ steps.push-storage.outputs.digest }}
-          COMPUTE_DIGEST: ${{ steps.push-compute.outputs.digest }}
-        run: |
-          {
-            echo "### Dev images (${SHA12})"
-            echo "- neon-storage:${SHA12}-dev \`${STORAGE_DIGEST}\`"
-            echo "- neon-compute-v17:${SHA12}-dev \`${COMPUTE_DIGEST}\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          DIGEST: ${{ steps.push-compute.outputs.digest }}
+        run: echo "- neon-compute-v17:${SHA12}-dev \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
 
   platform-storage:
     if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.variant == 'platform')
