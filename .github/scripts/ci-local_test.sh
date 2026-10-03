@@ -55,7 +55,7 @@ expect "build versions for v14 keep v17" "v14 v17" "$(build_versions v14)"
 # The image tag is the first 12 hex characters of sha256sum build-tools/Dockerfile,
 # exactly as pr.yml and build-tools.yml compute it.
 root="$(cd "$here/../.." && pwd)"
-expected="ghcr.io/cheladb/neon-build-tools:$(sha256sum "$root/build-tools/Dockerfile" | cut -c1-12)"
+expected="ghcr.io/chelabase/neon-build-tools:$(sha256sum "$root/build-tools/Dockerfile" | cut -c1-12)"
 expect "image name" "$expected" "$(image_name "$root")"
 
 # The docker command line: caches in the two named volumes, never host networking.

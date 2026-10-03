@@ -1,6 +1,6 @@
 name: images
 
-# Publishes the Neon images to ghcr.io/cheladb (public packages), amd64 only.
+# Publishes the Neon images to ghcr.io/chelabase (public packages), amd64 only.
 #
 #   dev       v* tags and workflow_dispatch (variant=dev, the default): the Postgres 17 variants,
 #             built by two parallel jobs (dev-storage, dev-compute)
@@ -20,7 +20,7 @@ name: images
 # .github/scripts/publish-dev.sh (see FORK.md); the dev jobs here stay as a manual fallback and
 # fail when <sha12>-dev already exists, unless the force_retag input is true. Platform images
 # and v* tags are run by hand:
-#   gh workflow run images.yml -R ChelaDB/neon --ref main -f variant=platform
+#   gh workflow run images.yml -R chelabase/neon --ref main -f variant=platform
 
 on:
   push:
@@ -55,10 +55,10 @@ defaults:
     shell: bash -euo pipefail {0}
 
 env:
-  REGISTRY_NS: ghcr.io/cheladb
+  REGISTRY_NS: ghcr.io/chelabase
 
 jobs:
-  # Builds ghcr.io/cheladb/neon-build-tools:<tag> if it is missing; the storage build uses it
+  # Builds ghcr.io/chelabase/neon-build-tools:<tag> if it is missing; the storage build uses it
   # as its build image.
   build-tools:
     permissions:
@@ -142,7 +142,7 @@ jobs:
           context: .
           build-args: |
             PG_VERSIONS=v17
-            REPOSITORY=ghcr.io/cheladb
+            REPOSITORY=ghcr.io/chelabase
             IMAGE=neon-build-tools
             TAG=${{ needs.meta.outputs.build_tools_tag }}
             GIT_VERSION=${{ github.sha }}
@@ -152,7 +152,7 @@ jobs:
           provenance: false
           sbom: false
           tags: neon-dev-test:local
-          cache-from: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-dev
+          cache-from: type=registry,ref=ghcr.io/chelabase/neon-storage:buildcache-dev
 
       - name: Test the storage image variant
         run: .github/scripts/image_variant_test.sh neon-dev-test:local
@@ -164,7 +164,7 @@ jobs:
           context: .
           build-args: |
             PG_VERSIONS=v17
-            REPOSITORY=ghcr.io/cheladb
+            REPOSITORY=ghcr.io/chelabase
             IMAGE=neon-build-tools
             TAG=${{ needs.meta.outputs.build_tools_tag }}
             GIT_VERSION=${{ github.sha }}
@@ -175,10 +175,10 @@ jobs:
           sbom: true
           tags: ${{ steps.tags.outputs.storage }}
           labels: |
-            org.opencontainers.image.source=https://github.com/ChelaDB/neon
+            org.opencontainers.image.source=https://github.com/chelabase/neon
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-dev
-          cache-to: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
+          cache-from: type=registry,ref=ghcr.io/chelabase/neon-storage:buildcache-dev
+          cache-to: type=registry,ref=ghcr.io/chelabase/neon-storage:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
 
       - name: Digest
         env:
@@ -246,10 +246,10 @@ jobs:
           sbom: true
           tags: ${{ steps.tags.outputs.compute }}
           labels: |
-            org.opencontainers.image.source=https://github.com/ChelaDB/neon
+            org.opencontainers.image.source=https://github.com/chelabase/neon
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/cheladb/neon-compute-v17:buildcache-dev
-          cache-to: type=registry,ref=ghcr.io/cheladb/neon-compute-v17:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
+          cache-from: type=registry,ref=ghcr.io/chelabase/neon-compute-v17:buildcache-dev
+          cache-to: type=registry,ref=ghcr.io/chelabase/neon-compute-v17:buildcache-dev,mode=max,image-manifest=true,oci-mediatypes=true
 
       - name: Digest
         env:
@@ -301,7 +301,7 @@ jobs:
           context: .
           build-args: |
             PG_VERSIONS=v14 v15 v16 v17
-            REPOSITORY=ghcr.io/cheladb
+            REPOSITORY=ghcr.io/chelabase
             IMAGE=neon-build-tools
             TAG=${{ needs.meta.outputs.build_tools_tag }}
             GIT_VERSION=${{ github.sha }}
@@ -312,10 +312,10 @@ jobs:
           sbom: true
           tags: ${{ steps.tags.outputs.storage }}
           labels: |
-            org.opencontainers.image.source=https://github.com/ChelaDB/neon
+            org.opencontainers.image.source=https://github.com/chelabase/neon
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-platform
-          cache-to: type=registry,ref=ghcr.io/cheladb/neon-storage:buildcache-platform,mode=max,image-manifest=true,oci-mediatypes=true
+          cache-from: type=registry,ref=ghcr.io/chelabase/neon-storage:buildcache-platform
+          cache-to: type=registry,ref=ghcr.io/chelabase/neon-storage:buildcache-platform,mode=max,image-manifest=true,oci-mediatypes=true
 
       - name: Digest
         env:
@@ -385,10 +385,10 @@ jobs:
           sbom: true
           tags: ${{ steps.tags.outputs.compute }}
           labels: |
-            org.opencontainers.image.source=https://github.com/ChelaDB/neon
+            org.opencontainers.image.source=https://github.com/chelabase/neon
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/cheladb/${{ env.IMAGE_NAME }}:buildcache-platform
-          cache-to: type=registry,ref=ghcr.io/cheladb/${{ env.IMAGE_NAME }}:buildcache-platform,mode=max,image-manifest=true,oci-mediatypes=true
+          cache-from: type=registry,ref=ghcr.io/chelabase/${{ env.IMAGE_NAME }}:buildcache-platform
+          cache-to: type=registry,ref=ghcr.io/chelabase/${{ env.IMAGE_NAME }}:buildcache-platform,mode=max,image-manifest=true,oci-mediatypes=true
 
       - name: Digest
         env:

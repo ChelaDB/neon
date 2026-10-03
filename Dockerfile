@@ -9,7 +9,7 @@ ARG PG_VERSIONS="v14 v15 v16 v17"
 # The build-tools image. images.yml passes the tag it computes (first 12 hex of the sha256 of
 # build-tools/Dockerfile, as build-tools.yml does); this default is a fallback and goes stale
 # whenever build-tools/Dockerfile changes.
-ARG REPOSITORY=ghcr.io/cheladb
+ARG REPOSITORY=ghcr.io/chelabase
 ARG IMAGE=neon-build-tools
 ARG TAG=a93539980382
 ARG DEBIAN_VERSION=bookworm

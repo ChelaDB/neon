@@ -9,7 +9,7 @@ name: pr
 # summary job (branch protection requires no status check at present).
 #
 # Every job except `ci-ok` runs inside the build-tools image
-# (ghcr.io/cheladb/neon-build-tools), as root at the container level so the
+# (ghcr.io/chelabase/neon-build-tools), as root at the container level so the
 # first step can hand the workspace to the image's `nonroot` user; every `run`
 # step then runs as `nonroot` through .github/scripts/as-nonroot.sh.
 #

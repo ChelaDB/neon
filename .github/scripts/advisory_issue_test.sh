@@ -30,7 +30,7 @@ run_case() {
     shift
     : >"$tmp/calls"
     STUB_CALLS="$tmp/calls" STUB_OPEN_ISSUES="$open" PATH="$tmp/bin:$PATH" \
-        RUN_URL="https://github.com/ChelaDB/neon/actions/runs/42" "$script" "$@" >/dev/null 2>"$tmp/err" || {
+        RUN_URL="https://github.com/chelabase/neon/actions/runs/42" "$script" "$@" >/dev/null 2>"$tmp/err" || {
         echo "script exited non-zero: $(cat "$tmp/err")"
         return
     }

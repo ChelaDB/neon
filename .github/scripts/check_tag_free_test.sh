@@ -28,8 +28,8 @@ expect() {
     if [[ "$2" == "$3" ]]; then echo "ok: $1"; else echo "FAIL: $1: expected [$2], got [$3]"; failures=$((failures + 1)); fi
 }
 
-a=ghcr.io/cheladb/neon-storage:abc-dev
-b=ghcr.io/cheladb/neon-compute-v17:abc-dev
+a=ghcr.io/chelabase/neon-storage:abc-dev
+b=ghcr.io/chelabase/neon-compute-v17:abc-dev
 expect "free tag passes" 0 "$(run false "" "$a")"
 expect "existing tag fails" 1 "$(run false "$a" "$a")"
 expect "one of two existing fails" 1 "$(run false "$b" "$a" "$b")"
