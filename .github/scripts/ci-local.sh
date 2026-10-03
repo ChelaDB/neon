@@ -37,7 +37,7 @@
 # Requires `docker login ghcr.io` (the build-tools package is private). The
 # checkout must be a normal clone (not a `git worktree`): its .git is mounted.
 
-IMAGE_REPO="ghcr.io/cheladb/neon-build-tools"
+IMAGE_REPO="ghcr.io/chelabase/neon-build-tools"
 CARGO_VOLUME="chela-neon-cargo"
 TARGET_VOLUME="chela-neon-target"
 MAJORS=(v14 v15 v16 v17)
@@ -369,7 +369,7 @@ ensure_submodules() {
     ((${#missing[@]} == 0)) && return 0
     echo "ci-local.sh: initialising submodules: ${missing[*]}"
     if ! git -C "$ROOT" submodule update --init -- "${missing[@]}"; then
-        echo "ci-local.sh: could not initialise ${missing[*]} (they come from github.com/ChelaDB/postgres)." >&2
+        echo "ci-local.sh: could not initialise ${missing[*]} (they come from github.com/chelabase/postgres)." >&2
         echo "  Check network access, then run: git submodule update --init" >&2
         return 1
     fi

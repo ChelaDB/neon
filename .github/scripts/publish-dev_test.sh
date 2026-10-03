@@ -59,8 +59,8 @@ sha=7dc4d86b7d48aabbccddeeff00112233445566ff
 expect "sha12" "7dc4d86b7d48" "$(sha12 "$sha")"
 
 # image refs
-expect "storage ref" "ghcr.io/cheladb/neon-storage:7dc4d86b7d48-dev" "$(image_ref storage 7dc4d86b7d48)"
-expect "compute ref" "ghcr.io/cheladb/neon-compute-v17:7dc4d86b7d48-dev" "$(image_ref compute 7dc4d86b7d48)"
+expect "storage ref" "ghcr.io/chelabase/neon-storage:7dc4d86b7d48-dev" "$(image_ref storage 7dc4d86b7d48)"
+expect "compute ref" "ghcr.io/chelabase/neon-compute-v17:7dc4d86b7d48-dev" "$(image_ref compute 7dc4d86b7d48)"
 expect_fail "unknown image name" image_ref other 7dc4d86b7d48
 
 # build-tools tag: first 12 hex of sha256sum build-tools/Dockerfile
@@ -91,15 +91,15 @@ expect_fail "no ghcr login" ghcr_login_present "$tmp/other.json"
 expect_fail "no config file" ghcr_login_present "$tmp/missing.json"
 
 # digest from `docker buildx imagetools inspect` output
-inspect_out="Name:      ghcr.io/cheladb/neon-storage:7dc4d86b7d48-dev
+inspect_out="Name:      ghcr.io/chelabase/neon-storage:7dc4d86b7d48-dev
 MediaType: application/vnd.oci.image.index.v1+json
 Digest:    sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 "
 expect "digest parse" "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" \
     "$(digest_from_inspect "$inspect_out")"
 expect_fail "digest parse of garbage" digest_from_inspect "nothing here"
-expect "pin form" "ghcr.io/cheladb/neon-compute-v17:7dc4d86b7d48-dev@sha256:abc" \
-    "$(pin_ref ghcr.io/cheladb/neon-compute-v17:7dc4d86b7d48-dev sha256:abc)"
+expect "pin form" "ghcr.io/chelabase/neon-compute-v17:7dc4d86b7d48-dev@sha256:abc" \
+    "$(pin_ref ghcr.io/chelabase/neon-compute-v17:7dc4d86b7d48-dev sha256:abc)"
 
 # existing-tag check, with `docker` stubbed
 # shellcheck disable=SC2329 # called by tag_exists

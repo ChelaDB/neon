@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the Postgres 17 dev images on this machine and pushes them to ghcr.io/cheladb.
+# Builds the Postgres 17 dev images on this machine and pushes them to ghcr.io/chelabase.
 # It mirrors the dev-storage and dev-compute jobs of .github/workflows/images.yml (which is now
 # only for tags and the platform images, run by hand).
 #
@@ -15,12 +15,12 @@
 #                     published tags are pinned by digest elsewhere)
 #
 # Images (linux/amd64, <sha12> = the first 12 hex of HEAD, the `neon_tag` of cheladb):
-#   ghcr.io/cheladb/neon-storage:<sha12>-dev      root Dockerfile, PG_VERSIONS=v17
-#   ghcr.io/cheladb/neon-compute-v17:<sha12>-dev  compute/compute-node.Dockerfile, v17, minimal
+#   ghcr.io/chelabase/neon-storage:<sha12>-dev      root Dockerfile, PG_VERSIONS=v17
+#   ghcr.io/chelabase/neon-compute-v17:<sha12>-dev  compute/compute-node.Dockerfile, v17, minimal
 #
 # Steps: pre-checks, build storage then compute (sequential: the builds are CPU-bound), run
 # image_variant_test.sh on the storage image, then push both and print the pushed digests as
-# ghcr.io/cheladb/<name>:<sha12>-dev@sha256:<digest>, ready to pin. Nothing is pushed unless
+# ghcr.io/chelabase/<name>:<sha12>-dev@sha256:<digest>, ready to pin. Nothing is pushed unless
 # every build and the variant test passed.
 #
 # Differences from images.yml: the push is a plain `docker push` of the locally built image, so
@@ -31,8 +31,8 @@
 # builds do for the build-tools image, needs no login) and the four
 # vendor/postgres-v1x submodules at their recorded commits (git submodule update --init).
 
-REGISTRY_NS="ghcr.io/cheladb"
-SOURCE_URL="https://github.com/ChelaDB/neon"
+REGISTRY_NS="ghcr.io/chelabase"
+SOURCE_URL="https://github.com/chelabase/neon"
 
 usage() {
     sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
