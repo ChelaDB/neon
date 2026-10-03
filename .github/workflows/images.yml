@@ -11,7 +11,7 @@ name: images
 #               neon-compute-v1{4,5,6,7}:<sha12>   EXTENSIONS=all
 #
 # <sha12> is the first 12 hex digits of the built commit, the same value as `neon_tag` in
-# cheladb's infra/neon/lib/tags.sh. A v* tag also publishes <tag> (platform) and <tag>-dev (dev).
+# chelabase's infra/neon/lib/tags.sh. A v* tag also publishes <tag> (platform) and <tag>-dev (dev).
 # Each image carries SBOM and provenance attestations and the org.opencontainers.image.source label.
 # The dev storage image is checked by image_variant_test.sh before it is pushed.
 #

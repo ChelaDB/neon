@@ -2,9 +2,9 @@
 
 
 
-# Neon (ChelaDB Fork)
+# Neon (Chelabase Fork)
 
-This is ChelaDB's hard fork of [Neon](https://github.com/neondatabase/neon), an open-source serverless Postgres database platform. Neon separates storage and compute and substitutes the PostgreSQL storage layer by redistributing data across a cluster of nodes. See [FORK.md](./FORK.md) for fork details.
+This is Chelabase's hard fork of [Neon](https://github.com/neondatabase/neon), an open-source serverless Postgres database platform. Neon separates storage and compute and substitutes the PostgreSQL storage layer by redistributing data across a cluster of nodes. See [FORK.md](./FORK.md) for fork details.
 
 ## Quick start
 Try the [Neon Free Tier](https://neon.com/signup) to create a serverless Postgres instance. Then connect to it with your preferred Postgres client (psql, dbeaver, etc) or use the online [SQL Editor](https://neon.com/docs/get-started-with-neon/query-with-neon-sql-editor/). See [Connect from any application](https://neon.com/docs/connect/connect-from-any-app/) for connection instructions.

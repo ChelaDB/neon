@@ -1,16 +1,16 @@
 [submodule "vendor/postgres-v14"]
 	path = vendor/postgres-v14
 	url = https://github.com/chelabase/postgres.git
-	branch = REL_14_STABLE_cheladb
+	branch = REL_14_STABLE_chelabase
 [submodule "vendor/postgres-v15"]
 	path = vendor/postgres-v15
 	url = https://github.com/chelabase/postgres.git
-	branch = REL_15_STABLE_cheladb
+	branch = REL_15_STABLE_chelabase
 [submodule "vendor/postgres-v16"]
 	path = vendor/postgres-v16
 	url = https://github.com/chelabase/postgres.git
-	branch = REL_16_STABLE_cheladb
+	branch = REL_16_STABLE_chelabase
 [submodule "vendor/postgres-v17"]
 	path = vendor/postgres-v17
 	url = https://github.com/chelabase/postgres.git
-	branch = REL_17_STABLE_cheladb
+	branch = REL_17_STABLE_chelabase

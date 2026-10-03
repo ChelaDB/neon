@@ -28,7 +28,7 @@
 # Caches live in two named Docker volumes: chela-neon-cargo (cargo registry and
 # git, poetry venvs) and chela-neon-target (target/, pg_install/, build/ of the
 # checkout). No `--network host`: the test ports stay inside the container, so
-# they never clash with the cheladb Compose stack.
+# they never clash with the chelabase Compose stack.
 #
 # The full log and one log per step go to .ci-local/<timestamp>/ (git-ignored),
 # with the regression suite's logs in test-logs.tar.zst. The exit status is

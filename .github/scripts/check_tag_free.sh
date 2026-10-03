@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fails when any of the given image tags already exists in the registry, so a CI run cannot
 # retag an image published from a developer machine (published tags are pinned by digest in
-# cheladb). Set FORCE_RETAG=true to skip the check.
+# chelabase). Set FORCE_RETAG=true to skip the check.
 #
 #   FORCE_RETAG=false .github/scripts/check_tag_free.sh <ref>...
 #
