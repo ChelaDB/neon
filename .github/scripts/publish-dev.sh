@@ -14,7 +14,7 @@
 #   --force-retag     overwrite a tag that already exists in the registry (off by default:
 #                     published tags are pinned by digest elsewhere)
 #
-# Images (linux/amd64, <sha12> = the first 12 hex of HEAD, the `neon_tag` of cheladb):
+# Images (linux/amd64, <sha12> = the first 12 hex of HEAD, the `neon_tag` of chelabase):
 #   ghcr.io/chelabase/neon-storage:<sha12>-dev      root Dockerfile, PG_VERSIONS=v17
 #   ghcr.io/chelabase/neon-compute-v17:<sha12>-dev  compute/compute-node.Dockerfile, v17, minimal
 #
@@ -249,7 +249,7 @@ main() {
         push_image "${refs[$i]}"
     done
     echo
-    echo "Pushed. Pin these in cheladb (Compose defaults NEON_IMAGE and COMPUTE_NODE_IMAGE):"
+    echo "Pushed. Pin these in chelabase (Compose defaults NEON_IMAGE and COMPUTE_NODE_IMAGE):"
     printf '  %s\n' "${PINNED[@]}"
 }
 
