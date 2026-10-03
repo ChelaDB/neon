@@ -666,21 +666,17 @@ impl Service {
             }
         }
 
-        // unwrap is safe: we return above for an empty timeline list
-        let max_generation = timeline_list
-            .iter()
-            .map(|(_tl_id, tl)| tl.generation as u32)
-            .max()
-            .unwrap();
-
         for sk_id in sk_list {
             let Some(safekeeper) = locked.safekeepers.get(&sk_id) else {
                 tracing::warn!("Couldn't find safekeeper with id {sk_id}");
                 continue;
             };
-            // Add pending op for tenant deletion
+            // Add pending op for tenant deletion. The generation must match the persisted
+            // pending op above (`i32::MAX`): `remove_pending_op` matches on it, and a leftover
+            // tenant op (timeline_id '') keeps `delete_timeline_from_db` from removing the
+            // tenant's `timelines` rows.
             let req = ScheduleRequest {
-                generation: max_generation,
+                generation: i32::MAX as u32,
                 host_list: Vec::new(),
                 kind: SafekeeperTimelineOpKind::Delete,
                 safekeeper: Box::new(safekeeper.clone()),
